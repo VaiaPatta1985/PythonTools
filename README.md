@@ -1,5 +1,6 @@
 # Python Tools
-A collection of Python tools that can make a C developer's life a little easier.
+
+A collection of Python tools that can make a C developer's life a little easier, published here under MIT license.
 
 ## cparser
 
