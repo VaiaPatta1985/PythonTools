@@ -7,10 +7,21 @@ import json
 
 
 def c_to_json(c_file: str) -> json:
+    """
+    Main function. Takes a C file and returns a json object with the parsed C syntax.
+    :param c_file: C file
+    :return: json object containing the parsed C syntax
+    """
     pass
 
 
 def parse(c_code: str, jsn: str) -> None:
+    """
+    This is the entry point to use cparser as a tool.
+    :param c_code: file containing C code
+    :param jsn: output file (omit or use empty string for stdout)
+    :return: None
+    """
     blob = c_to_json(c_code)
     if jsn:
         json.dump(blob, open(jsn, "w"))
