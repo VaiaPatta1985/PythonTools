@@ -1,5 +1,5 @@
 """
-Takes a text file and makes an altered copy with all the special characters escaped.
+Takes a text file as input and outputs an altered copy with all the special characters escaped.
 """
 
 import argparse

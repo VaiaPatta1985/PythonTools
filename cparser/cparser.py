@@ -1,9 +1,21 @@
 """
-TODO
+Takes a C file as input, parses C syntax and outputs results to json.
 """
 
 import argparse
-from c_parser import parse
+import json
+
+
+def c_to_json(c_file: str) -> json:
+    pass
+
+
+def parse(c_code: str, jsn: str) -> None:
+    blob = c_to_json(c_code)
+    if jsn:
+        json.dump(blob, open(jsn, "w"))
+    else:
+        print(json.dumps(blob))
 
 
 if __name__ == '__main__':
