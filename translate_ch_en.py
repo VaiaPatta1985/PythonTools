@@ -242,13 +242,18 @@ def standalone_cli():
                          help='Suffix to add to each translated file (default is none). IF BOTH PREFIX AND SUFFIX ' +
                               'ARE EMPTY, THE ORIGINAL FILE IS REPLACED.')
     my_args.add_argument('--rawfile', type=str, default=RAW_FILE,
-                         help='TODO')
+                         help='Output file that lists every line containing chinese. Default is `' + RAW_FILE + '` ' +
+                              'and is created in the current directory.')
     my_args.add_argument('--chfile', type=str, default=CH_FILE,
-                         help='TODO')
+                         help='Output file containing isolated chinese per line. Default is `' + CH_FILE + '` and is ' +
+                              'created in the current directory.')
     my_args.add_argument('--transrawfile', type=str, default=TRANS_RAW_FILE,
-                         help='TODO')
+                         help='Output file that lists every translated line. Default is `' + TRANS_RAW_FILE + '` and ' +
+                              'is created in the current directory.')
     my_args.add_argument('--listfile', type=str, default=LIST_FILE,
-                         help='TODO')
+                         help='Output file in csv format (including header) that lists chinese, translations, and ' +
+                              'corresponding line locations. Default is `' + LIST_FILE + '` and is created in the ' +
+                              'current directory.')
     my_parsed_args = my_args.parse_args()
     dirpath = my_parsed_args.dirpath
     extension = my_parsed_args.extension
