@@ -15,7 +15,7 @@ CSV_SEPARATOR = '妈'
 CSV_HEADER = CSV_SEPARATOR.join(['filename', 'line number', 'chinese', 'translation\n'])
 CHINESE_PATTERN_UNICODE = r'[\u3400-\u4DBF\u4E00-\u9FFF]'
 DEFAULT_ENCODING = 'utf-8'
-COMMENT_START_END = {'qml': ['//', ''], 'js': ['//', ''], 'c': ['//', ''], 'cpp': ['//', ''],
+COMMENT_START_END = {'qml': ['//', ''], 'js': ['//', ''], 'c': ['//', ''], 'cpp': ['//', ''], 'exp': ['//', ''],
                      'py': ['#', ''], 'rb': ['#', ''], 'sh': ['#', ''], 'bash': ['#', ''], 'ps1': ['#', ''],
                      'bat': ['::', ''],
                      '001': ['(*', '*)'],
@@ -50,7 +50,7 @@ def get_filenames(f_path: str, extensions: list[str]) -> list[str]:
     files_found = []
     for root, dirs, files in walk(f_path):
         for file in files:
-            if file.split('.')[-1] in extensions:
+            if file.split('.')[-1].lower() in extensions:
                 files_found.append(path.join(root, file))
     return files_found
 
@@ -104,7 +104,7 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
         print(itm)
 
     for idx in range(num_lines):
-        ext = all_files_repeated[idx].split('.')[-1]
+        ext = all_files_repeated[idx].split('.')[-1].lower()
         if COMMENT_START_END[ext][1] and not tr_lines[idx].endswith(COMMENT_START_END[ext][1]):
             tr_lines[idx] = tr_lines[idx]+COMMENT_START_END[ext][1]
         csv_lines[idx + 1] = CSV_SEPARATOR.join([csv_lines[idx + 1], tr_lines[idx]+'\n'])
@@ -116,13 +116,14 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
 
     print('Changes have been listed.')
 
-    out_lines = [raw_lines[idx].removesuffix('\n') + ' ' + COMMENT_START_END[all_files_repeated[idx].split('.')[-1]][0] + \
-                 tr_lines[idx]+'\n' for idx in range(num_lines)]
+    out_lines = [raw_lines[idx].removesuffix('\n') + ' ' + \
+                 COMMENT_START_END[all_files_repeated[idx].split('.')[-1].lower()][0] + tr_lines[idx] + \
+                 '\n' for idx in range(num_lines)]
     with open(trans_raw_file, "w", encoding=DEFAULT_ENCODING) as f_out:
         f_out.writelines(out_lines)
 
     for filename in all_files:
-        ext = filename.split('.')[-1]
+        ext = filename.split('.')[-1].lower()
         with open(filename, "r", encoding=encs[filename]) as f_in:
             in_lines = f_in.readlines()
         rep_idx = 0
@@ -136,7 +137,8 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
             if rep_idx == num_lines:
                 break
         split_filename = path.split(filename)
-        out_filename = split_filename[0] + pref + split_filename[1].removesuffix('.'+ext) + suff + '.' + ext
+        out_filename = split_filename[0] + pref + \
+                       split_filename[1].removesuffix('.'+ext).removesuffix('.'+ext.upper()) + suff + '.' + ext
         with open(out_filename, "w", encoding=encs[filename]) as f_out:
             f_out.writelines(in_lines)
 
