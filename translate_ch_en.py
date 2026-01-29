@@ -1,6 +1,7 @@
 from libretranslatepy import LibreTranslateAPI
 import chardet
 import re
+from os import path
 
 LOCAL = 'http://127.0.0.1:5000/'
 RAW_FILE = 'batch_raw'
@@ -47,7 +48,7 @@ def make_raw_line_list(file_encs: dict[str, str]) -> list[list[str]]:
 def get_filenames(extensions: list[str]) -> list[str]:
     files_found = []
     for extension in extensions:
-        files_found_ext = todo  # todo find . -name "*.py"
+        files_found_ext = todo  # todo find fullpath -name "*.py"
         files_found = files_found + files_found_ext
     return files_found
 
@@ -131,7 +132,8 @@ def translate_code(ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suf
             rep_idx = rep_idx + 1
             if rep_idx == num_lines:
                 break
-        out_filename = pref + filename.removesuffix('.'+ext) + suff + '.' + ext
+        split_filename = path.split(filename)
+        out_filename = split_filename[0] + pref + split_filename[1].removesuffix('.'+ext) + suff + '.' + ext
         with open(out_filename, "w", encoding=encs[filename]) as f_out:
             f_out.writelines(in_lines)
 
