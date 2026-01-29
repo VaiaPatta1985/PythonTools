@@ -1,7 +1,8 @@
-from libretranslatepy import LibreTranslateAPI
-import chardet
 import re
+import argparse
 from os import path
+import chardet
+from libretranslatepy import LibreTranslateAPI
 
 LOCAL = 'http://127.0.0.1:5000/'
 RAW_FILE = 'batch_raw'
@@ -139,4 +140,8 @@ def translate_code(ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suf
 
 
 if __name__ == '__main__':
+    my_args = argparse.ArgumentParser()
+    my_args.add_argument('--extension', choices=ALL_SUPPORTED_FILE_TYPES, action='append')
+    my_args.add_argument('--prefix', type=str, default='')
+    my_args.add_argument('--suffix', type=str, default='')
     translate_code()
