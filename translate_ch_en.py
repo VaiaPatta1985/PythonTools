@@ -1,6 +1,6 @@
 import re
 import argparse
-from os import path
+from os import path, walk
 import chardet
 from libretranslatepy import LibreTranslateAPI
 
@@ -48,9 +48,10 @@ def make_raw_line_list(file_encs: dict[str, str]) -> list[list[str]]:
 
 def get_filenames(f_path: str, extensions: list[str]) -> list[str]:
     files_found = []
-    for extens in extensions:
-        files_found_ext = todo  # todo find f_path -name "*.py"
-        files_found = files_found + files_found_ext
+    for root, dirs, files in walk(f_path):
+        for file in files:
+            if file.split('.')[-1] in extensions:
+                files_found.append(path.join(root, file))
     return files_found
 
 
