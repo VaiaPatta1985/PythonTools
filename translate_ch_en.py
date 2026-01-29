@@ -124,7 +124,9 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
     :return: None
     """
     encs = detect_encodings(get_filenames(fullpath, ext_in))
+    print("Encodings detected.")
     splitlines = make_raw_line_list(encs)
+    print("Found all lines pending translation.")
 
     all_files_repeated: list[str] = [splitline[0] for splitline in splitlines]
     line_nums: list[str] = [splitline[1] for splitline in splitlines]
@@ -135,7 +137,9 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
 
     with open(raw_file, "w", encoding=DEFAULT_ENCODING) as out_raw_file:
         out_raw_file.writelines(raw_lines)
+    print("Recorded all lines pending translation.")
 
+    # write csv lines excluding english translation
     for line in splitlines:
         line_to_add = line[0:2]
         line_to_add.append(line[3].removesuffix('\n'))
@@ -150,15 +154,16 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
 
     print('Chinese phrases have been catalogued.')
 
-    tr_lines = [str(k) for k in range(num_lines)]
+    tr_lines = [str(k) for k in range(num_lines)]  # just preallocating
     fff = 0
     too_large: list[str] = []
     for line in ch_lines:
         if len(line) > TOO_LONG:
             too_large.append(raw_lines[fff])
-        if not fff % RESTART_EVERY:
+        if not fff % RESTART_EVERY:  # restart the API after so many uses, and clear cache; this is for speed
             rmtree(path.join(path.curdir, '..', 'db'))
             lt = LibreTranslateAPI(LOCAL)
+        # the entire point of this project: finally translate :)
         tr_lines[fff] = lt.translate(line.removesuffix('\n'), CHINESE_LANGUAGE_CODE, ENGLISH_LANGUAGE_CODE)
         fff = fff + 1
         print('Translated line '+str(fff)+' of '+str(num_lines)+'.')
@@ -169,13 +174,14 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
         print('-------------')
         print(itm)
 
+    # append "end comment" symbol to translation
     for idx in range(num_lines):
         ext = all_files_repeated[idx].split('.')[-1].lower()
         if COMMENT_START_END[ext][1] and not tr_lines[idx].endswith(COMMENT_START_END[ext][1]):
             tr_lines[idx] = tr_lines[idx]+COMMENT_START_END[ext][1]
         csv_lines[idx + 1] = CSV_SEPARATOR.join([csv_lines[idx + 1], tr_lines[idx]+'\n'])
 
-    #print(csv_lines[1])
+    # can't remember why I did it this way tbh
 
     with open(list_file, "w", encoding=DEFAULT_ENCODING) as out_file:
         out_file.writelines(csv_lines)
@@ -187,26 +193,35 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
                  '\n' for idx in range(num_lines)]
     with open(trans_raw_file, "w", encoding=DEFAULT_ENCODING) as f_out:
         f_out.writelines(out_lines)
+    print("Full data has been recorded.")
 
+    nf = len(all_files)
+    f = 0
+    # create the translated files
     for filename in all_files:
+        f = f + 1
         ext = filename.split('.')[-1].lower()
+        # read original
         with open(filename, "r", encoding=encs[filename]) as f_in:
             in_lines = f_in.readlines()
         rep_idx = 0
         while all_files_repeated[rep_idx] != filename:
             rep_idx = rep_idx + 1
         while all_files_repeated[rep_idx] == filename:
+            # append translation as a comment, to each line containing chinese
             in_lines[int(line_nums[rep_idx]) - 1] = \
                     in_lines[int(line_nums[rep_idx]) - 1].removesuffix('\n') + \
                     ' '+COMMENT_START_END[ext][0]+tr_lines[rep_idx]+'\n'
             rep_idx = rep_idx + 1
             if rep_idx == num_lines:
                 break
+        # write to file with specified filename
         split_filename = path.split(filename)
         out_filename = split_filename[0] + pref + \
                        split_filename[1].removesuffix('.'+ext).removesuffix('.'+ext.upper()) + suff + '.' + ext
         with open(out_filename, "w", encoding=encs[filename]) as f_out:
             f_out.writelines(in_lines)
+        print("Translated file " + str(f) + " of " + str(nf) + ".")
 
 
 def standalone_cli():
