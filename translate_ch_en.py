@@ -46,27 +46,28 @@ def make_raw_line_list(file_encs: dict[str, str]) -> list[list[str]]:
     return splitlines_all
 
 
-def get_filenames(extensions: list[str]) -> list[str]:
+def get_filenames(f_path: str, extensions: list[str]) -> list[str]:
     files_found = []
-    for extension in extensions:
-        files_found_ext = todo  # todo find fullpath -name "*.py"
+    for extens in extensions:
+        files_found_ext = todo  # todo find f_path -name "*.py"
         files_found = files_found + files_found_ext
     return files_found
 
 
-def translate_code(ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suff: str=''):
-    encs = detect_encodings(get_filenames(ext_in))
+def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suff: str='',
+                   raw_file: str=RAW_FILE, ch_file: str=CH_FILE, trans_raw_file: str=TRANS_RAW_FILE,
+                   list_file: str=LIST_FILE):
+    encs = detect_encodings(get_filenames(fullpath, ext_in))
     splitlines = make_raw_line_list(encs)
 
     all_files_repeated: list[str] = [splitline[0] for splitline in splitlines]
     line_nums: list[str] = [splitline[1] for splitline in splitlines]
-    rest_of_line: list[str] = [splitline[2] for splitline in splitlines]
     ch_lines: list[str] = [splitline[3].removesuffix('\n') for splitline in splitlines]
     num_lines = len(splitlines)
     raw_lines = [CSV_SEPARATOR.join(splitline[0:3]) for splitline in splitlines]
     csv_lines = [CSV_HEADER]
 
-    with open(RAW_FILE, "w", encoding=DEFAULT_ENCODING) as out_raw_file:
+    with open(raw_file, "w", encoding=DEFAULT_ENCODING) as out_raw_file:
         out_raw_file.writelines(raw_lines)
 
     for line in splitlines:
@@ -78,7 +79,7 @@ def translate_code(ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suf
 
     print('Files have been listed.')
 
-    with open(CH_FILE, "w", encoding=DEFAULT_ENCODING) as out_file:
+    with open(ch_file, "w", encoding=DEFAULT_ENCODING) as out_file:
         out_file.writelines(ch_lines)
 
     print('Chinese phrases have been catalogued.')
@@ -109,14 +110,14 @@ def translate_code(ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suf
 
     #print(csv_lines[1])
 
-    with open(LIST_FILE, "w", encoding=DEFAULT_ENCODING) as out_file:
+    with open(list_file, "w", encoding=DEFAULT_ENCODING) as out_file:
         out_file.writelines(csv_lines)
 
     print('Changes have been listed.')
 
     out_lines = [raw_lines[idx].removesuffix('\n') + ' ' + COMMENT_START_END[all_files_repeated[idx].split('.')[-1]][0] + \
                  tr_lines[idx]+'\n' for idx in range(num_lines)]
-    with open(TRANS_RAW_FILE, "w", encoding=DEFAULT_ENCODING) as f_out:
+    with open(trans_raw_file, "w", encoding=DEFAULT_ENCODING) as f_out:
         f_out.writelines(out_lines)
 
     for filename in all_files:
@@ -141,7 +142,23 @@ def translate_code(ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suf
 
 if __name__ == '__main__':
     my_args = argparse.ArgumentParser()
-    my_args.add_argument('--extension', choices=ALL_SUPPORTED_FILE_TYPES, action='append')
+    my_args.add_argument('--dirpath', type=str, default=path.curdir)
+    my_args.add_argument('--extension', choices=ALL_SUPPORTED_FILE_TYPES, action='append', required=False)
     my_args.add_argument('--prefix', type=str, default='')
     my_args.add_argument('--suffix', type=str, default='')
-    translate_code()
+    my_args.add_argument('--rawfile', type=str, default=RAW_FILE)
+    my_args.add_argument('--chfile', type=str, default=CH_FILE)
+    my_args.add_argument('--transrawfile', type=str, default=TRANS_RAW_FILE)
+    my_args.add_argument('--listfile', type=str, default=LIST_FILE)
+    my_parsed_args = my_args.parse_args()
+    dirpath = my_parsed_args.dirpath
+    extension = my_parsed_args.extension
+    if not extension:
+        extension = ALL_SUPPORTED_FILE_TYPES
+    prefix = my_parsed_args.prefix
+    suffix = my_parsed_args.suffix
+    rawfile = my_parsed_args.rawfile
+    chfile = my_parsed_args.chfile
+    transrawfile = my_parsed_args.transrawfile
+    listfile = my_parsed_args.listfile
+    translate_code(dirpath, extension, prefix, suffix, rawfile, chfile, transrawfile, listfile)
