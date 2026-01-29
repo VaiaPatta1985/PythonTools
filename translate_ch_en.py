@@ -1,98 +1,140 @@
 from libretranslatepy import LibreTranslateAPI
+import chardet
+import re
 
 LOCAL = 'http://127.0.0.1:5000/'
-IN_FILE = 'batch_raw'
+RAW_FILE = 'batch_raw'
 CH_FILE = 'batch_ch'
+TRANS_RAW_FILE = 'batch_raw_tr'
 LIST_FILE = 'uncertain.csv'
+CHINESE_LANGUAGE_CODE = "zh-Hans"
+ENGLISH_LANGUAGE_CODE = "en"
 CSV_SEPARATOR = '妈'
+CSV_HEADER = CSV_SEPARATOR.join(['filename', 'line number', 'chinese', 'translation\n'])
+CHINESE_PATTERN_UNICODE = r'[\u3400-\u4DBF\u4E00-\u9FFF]'
+DEFAULT_ENCODING = 'utf-8'
+COMMENT_START_END = {'qml': ['//', ''], 'js': ['//', ''], 'c': ['//', ''], 'cpp': ['//', ''],
+                     'py': ['#', ''], 'rb': ['#', ''], 'sh': ['#', ''], 'bash': ['#', ''], 'ps1': ['#', ''],
+                     'bat': ['::', ''],
+                     '001': ['(*', '*)'],
+                     'bas': ['\'', '']}
+ALL_SUPPORTED_FILE_TYPES = COMMENT_START_END.keys()
 
-with open(IN_FILE, "r") as in_file:
-    lines = in_file.readlines()
 
-print(IN_FILE+' has been read.')
+def detect_encodings(filenames: list[str]) -> dict[str, str]:
+    dict_out: dict[str, str] = {}
+    for fn in filenames:
+        with open(fn, "rb") as rf:
+            raw = rf.read()
+        dict_out[fn] = chardet.detect(raw)["encoding"]
+    return dict_out
 
-num_lines = len(lines)
 
-all_files_repeated: list[str] = []
-csv_lines = ['filename'+CSV_SEPARATOR+'line number'+CSV_SEPARATOR+'chinese'+CSV_SEPARATOR+'translation\n']
-rest_of_line: list[str] = []
-line_nums: list[str] = []
+def make_raw_line_list(file_encs: dict[str, str]) -> list[list[str]]:
+    splitlines_all: list[list[str]] = []
+    for fn, enc in file_encs.items():
+        with open(fn, "r", encoding=enc) as raw:
+            all_lines = raw.readlines()
+        for line_idx in range(len(all_lines)):
+            cur_line = all_lines[line_idx]
+            chinese = re.findall(CHINESE_PATTERN_UNICODE, cur_line)
+            if chinese:
+                splitline = [fn, str(line_idx+1), cur_line, chinese]
+                splitlines_all.append(splitline)
+    return splitlines_all
 
-for line in lines:
-    split_line = line.split(':')
-    all_files_repeated.append(split_line[0])
-    line_nums.append(split_line[1])
-    rest_of_line.append(''.join(split_line[2:len(split_line)]))
-    csv_lines.append(CSV_SEPARATOR.join(split_line[0:2]))
 
-all_files = list(set(all_files_repeated))
+def get_filenames(extensions: list[str]) -> list[str]:
+    files_found = []
+    for extension in extensions:
+        files_found_ext = todo  # todo find . -name "*.py"
+        files_found = files_found + files_found_ext
+    return files_found
 
-print('Files have been listed.')
 
-with open(CH_FILE, "r") as in_file:
-    ch_lines = in_file.readlines()
+def translate_code(ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suff: str=''):
+    encs = detect_encodings(get_filenames(ext_in))
+    splitlines = make_raw_line_list(encs)
 
-print('Chinese phrases have been catalogued.')
+    all_files_repeated: list[str] = [splitline[0] for splitline in splitlines]
+    line_nums: list[str] = [splitline[1] for splitline in splitlines]
+    rest_of_line: list[str] = [splitline[2] for splitline in splitlines]
+    ch_lines: list[str] = [splitline[3].removesuffix('\n') for splitline in splitlines]
+    num_lines = len(splitlines)
+    raw_lines = [CSV_SEPARATOR.join(splitline[0:3]) for splitline in splitlines]
+    csv_lines = [CSV_HEADER]
 
-tr_lines = [str(k) for k in range(num_lines)]
-fff = 0
-too_large: list[str] = []
-for line in ch_lines:
-    if len(line) > 65000:
-        too_large.append(lines[fff])
-    if not fff % 500:
-        lt = LibreTranslateAPI(LOCAL)
-    tr_lines[fff] = lt.translate(line.removesuffix('\n'), "zh-Hans", "en")
-    fff = fff + 1
-    print('Translating line '+str(fff)+' of '+str(num_lines)+'.')
+    with open(RAW_FILE, "w", encoding=DEFAULT_ENCODING) as out_raw_file:
+        out_raw_file.writelines(raw_lines)
 
-print('Translation has taken place.')
-print('Info on lines that are too large:')
-for itm in too_large:
-    print('-------------')
-    print(itm)
+    for line in splitlines:
+        line_to_add = line[0:2]
+        line_to_add.append(line[3].removesuffix('\n'))
+        csv_lines.append(CSV_SEPARATOR.join(line_to_add))
 
-for idx in range(num_lines):
-    if all_files_repeated[idx].endswith('.001') and \
-       not tr_lines[idx].endswith('*)'):
-        tr_lines[idx] = tr_lines[idx]+'*)'
-    csv_lines[idx + 1] = \
-        CSV_SEPARATOR.join([csv_lines[idx + 1], ch_lines[idx].removesuffix('\n'),
-                            tr_lines[idx]+'\n'])
+    all_files = list(set(all_files_repeated))
 
-#print(csv_lines[1])
+    print('Files have been listed.')
 
-with open(LIST_FILE, "w") as out_file:
-    out_file.writelines(csv_lines)
+    with open(CH_FILE, "w", encoding=DEFAULT_ENCODING) as out_file:
+        out_file.writelines(ch_lines)
 
-print('Changes have been listed.')
+    print('Chinese phrases have been catalogued.')
 
-out_lines: list[str] = []
-with open(IN_FILE, "r") as f_in:
-    in_lines = f_in.readlines()
+    tr_lines = [str(k) for k in range(num_lines)]
+    fff = 0
+    too_large: list[str] = []
+    for line in ch_lines:
+        if len(line) > 65000:
+            too_large.append(raw_lines[fff])
+        if not fff % 500:
+            lt = LibreTranslateAPI(LOCAL)
+        tr_lines[fff] = lt.translate(line, CHINESE_LANGUAGE_CODE, ENGLISH_LANGUAGE_CODE)
+        fff = fff + 1
+        print('Translated line '+str(fff)+' of '+str(num_lines)+'.')
+
+    print('Translation has taken place.')
+    print('Info on lines that are too large:')
+    for itm in too_large:
+        print('-------------')
+        print(itm)
+
     for idx in range(num_lines):
-        out_lines.append(
-            in_lines[idx].removesuffix('\n')+' //'+tr_lines[idx]+'\n')
-with open(IN_FILE+'_tr', "w") as f_out:
-    f_out.writelines(out_lines)
+        ext = all_files_repeated[idx].split('.')[-1]
+        if COMMENT_START_END[ext][1] and not tr_lines[idx].endswith(COMMENT_START_END[ext][1]):
+            tr_lines[idx] = tr_lines[idx]+COMMENT_START_END[ext][1]
+        csv_lines[idx + 1] = CSV_SEPARATOR.join([csv_lines[idx + 1], tr_lines[idx]+'\n'])
 
-for filename in all_files:
-    with open(filename, "r") as f_in:
-        in_lines = f_in.readlines()
-    rep_idx = 0
-    while all_files_repeated[rep_idx] != filename:
-        rep_idx = rep_idx + 1
-    while all_files_repeated[rep_idx] == filename:
-        if filename.endswith('.001'):
+    #print(csv_lines[1])
+
+    with open(LIST_FILE, "w", encoding=DEFAULT_ENCODING) as out_file:
+        out_file.writelines(csv_lines)
+
+    print('Changes have been listed.')
+
+    out_lines = [raw_lines[idx].removesuffix('\n') + ' ' + COMMENT_START_END[all_files_repeated[idx].split('.')[-1]][0] + \
+                 tr_lines[idx]+'\n' for idx in range(num_lines)]
+    with open(TRANS_RAW_FILE, "w", encoding=DEFAULT_ENCODING) as f_out:
+        f_out.writelines(out_lines)
+
+    for filename in all_files:
+        ext = filename.split('.')[-1]
+        with open(filename, "r", encoding=encs[filename]) as f_in:
+            in_lines = f_in.readlines()
+        rep_idx = 0
+        while all_files_repeated[rep_idx] != filename:
+            rep_idx = rep_idx + 1
+        while all_files_repeated[rep_idx] == filename:
             in_lines[int(line_nums[rep_idx]) - 1] = \
-                in_lines[int(line_nums[rep_idx]) - 1].removesuffix('\n') + \
-                ' (*'+tr_lines[rep_idx]+'\n'
-        else:
-            in_lines[int(line_nums[rep_idx]) - 1] = \
-                in_lines[int(line_nums[rep_idx]) - 1].removesuffix('\n') + \
-                ' //'+tr_lines[rep_idx]+'\n'
-        rep_idx = rep_idx + 1
-        if rep_idx == num_lines:
-            break
-    with open(filename+'_tr', "w") as f_out:
-        f_out.writelines(in_lines)
+                    in_lines[int(line_nums[rep_idx]) - 1].removesuffix('\n') + \
+                    ' '+COMMENT_START_END[ext][0]+tr_lines[rep_idx]+'\n'
+            rep_idx = rep_idx + 1
+            if rep_idx == num_lines:
+                break
+        out_filename = pref + filename.removesuffix('.'+ext) + suff + '.' + ext
+        with open(out_filename, "w", encoding=encs[filename]) as f_out:
+            f_out.writelines(in_lines)
+
+
+if __name__ == '__main__':
+    translate_code()
