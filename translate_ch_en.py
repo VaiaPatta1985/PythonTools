@@ -88,7 +88,7 @@ def get_filenames(f_path: str, extensions: list[str]) -> list[str]:
 
 def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suff: str='',
                    raw_file: str=RAW_FILE, ch_file: str=CH_FILE, trans_raw_file: str=TRANS_RAW_FILE,
-                   list_file: str=LIST_FILE) -> None:
+                   list_file: str=LIST_FILE, char_encoding: str=DEFAULT_ENCODING) -> None:
     """
     The main program. Translates chinese from all files with given extensions in a given folder and its subfolders,
     appends english translation as a comment at the end of each line, and saves the translated file to the same path as
@@ -121,10 +121,16 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
     :param list_file: csv file (whose separator is CSV_SEPARATOR) that contains [file path, line number (as a string),
                       chinese content, translation] for each line containing chinese (default is given by LIST_FILE);
                       header is given by CSV_HEADER
+    :param char_encoding: expected test encoding (default given by DEFAULT_ENCODING); use 'detect' to run encoding
+                      detection for each file.
     :return: None
     """
-    encs = detect_encodings(get_filenames(fullpath, ext_in))
-    print("Encodings detected.")
+    files_of_desired_types = get_filenames(fullpath, ext_in)
+    if char_encoding == 'detect':
+        encs = detect_encodings(files_of_desired_types)
+        print("Encodings detected.")
+    else:
+        encs = {filename: char_encoding for filename in files_of_desired_types}
     splitlines = make_raw_line_list(encs)
     print("Found all lines pending translation.")
 
@@ -259,7 +265,7 @@ def standalone_cli():
     my_args.add_argument('--rawfile', type=str, default=RAW_FILE,
                          help='Output file that lists every line containing chinese. Default is `' + RAW_FILE + '` ' +
                               'and is created in the current directory.')
-    my_args.add_argument('--chfile', type=str, default=CH_FILE,
+    my_args.add_argument('--isol_chfile', type=str, default=CH_FILE,
                          help='Output file containing isolated chinese per line. Default is `' + CH_FILE + '` and is ' +
                               'created in the current directory.')
     my_args.add_argument('--transrawfile', type=str, default=TRANS_RAW_FILE,
@@ -269,6 +275,9 @@ def standalone_cli():
                          help='Output file in csv format (including header) that lists chinese, translations, and ' +
                               'corresponding line locations. Default is `' + LIST_FILE + '` and is created in the ' +
                               'current directory.')
+    my_args.add_argument('--char_encoding', type=str, default=DEFAULT_ENCODING,
+                         help='Expected encoding. Default is ' + DEFAULT_ENCODING + '. Input `detect` to run ' +
+                              'encoding detection on each file.')
     my_parsed_args = my_args.parse_args()
     dirpath = my_parsed_args.dirpath
     extension = my_parsed_args.extension
@@ -277,10 +286,11 @@ def standalone_cli():
     prefix = my_parsed_args.prefix
     suffix = my_parsed_args.suffix
     rawfile = my_parsed_args.rawfile
-    chfile = my_parsed_args.chfile
+    chfile = my_parsed_args.isol_chfile
     transrawfile = my_parsed_args.transrawfile
     listfile = my_parsed_args.listfile
-    translate_code(dirpath, extension, prefix, suffix, rawfile, chfile, transrawfile, listfile)
+    char_encoding = my_parsed_args.char_encoding
+    translate_code(dirpath, extension, prefix, suffix, rawfile, chfile, transrawfile, listfile, char_encoding)
 
 
 if __name__ == '__main__':
