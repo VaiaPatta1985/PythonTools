@@ -7,30 +7,51 @@ Run with the `-h` argument for more details.
 
 import re
 import argparse
-from os import path, walk
+from os import path, walk, getenv, chdir, system
+from time import sleep
 from shutil import rmtree
-import chardet
+from codecs import lookup
+from chardet import detect
 from libretranslatepy import LibreTranslateAPI
 
+
+# general constants
 LOCAL = 'http://127.0.0.1:5000/'
+#TEMP_FOLDER = getenv('TMP')
+TEMP_FOLDER = '/tmp'
+
+# natural language constants
+ENGLISH_LANGUAGE_CODE = "en"
+CHINESE_LANGUAGE_CODE = "zh-Hans"
+CHINESE_PATTERN_UNICODE = r'[\u3400-\u4DBF\u4E00-\u9FFF]'  # regular expression matches Unicode Chinese characters
+CSV_SEPARATOR = '妈'  # a simple single-character Chinese word that will probably never appear in code (it means "mum")
+CSV_HEADER = CSV_SEPARATOR.join(['filename', 'line number', 'chinese', 'translation\n'])
+
 TOO_LONG = 60000  # 60000 is assuming you want to open the csv with LibreOffice Calc; for Microsoft Excel, use 30000
 RESTART_EVERY = 500  # restart the API after so many uses, and clear cache; this is for speed
+
+# programming language constants
+COMMENT_START_END = {
+    'qml': ['//', ''], 'js': ['//', ''], 'c': ['//', ''], 'cpp': ['//', ''], 'exp': ['//', ''],
+    'py': ['#', ''], 'rb': ['#', ''], 'sh': ['#', ''], 'bash': ['#', ''], 'ps1': ['#', ''],
+    'bat': ['::', ''],
+    'bas': ['\'', ''],
+
+    '001': ['(*', '*)'],
+}
+ALL_SUPPORTED_FILE_TYPES = COMMENT_START_END.keys()
+
+# defaults
+
+# default filenames
 RAW_FILE = 'batch_raw'
 CH_FILE = 'batch_ch'
 TRANS_RAW_FILE = 'batch_raw_tr'
 LIST_FILE = 'uncertain.csv'
-CHINESE_LANGUAGE_CODE = "zh-Hans"
-ENGLISH_LANGUAGE_CODE = "en"
-CSV_SEPARATOR = '妈'  # a simple single-character Chinese word that will probably never appear in code (it means "mum")
-CSV_HEADER = CSV_SEPARATOR.join(['filename', 'line number', 'chinese', 'translation\n'])
-CHINESE_PATTERN_UNICODE = r'[\u3400-\u4DBF\u4E00-\u9FFF]'  # regular expression matches Unicode Chinese characters
+# default encoding
 DEFAULT_ENCODING = 'utf-8'
-COMMENT_START_END = {'qml': ['//', ''], 'js': ['//', ''], 'c': ['//', ''], 'cpp': ['//', ''], 'exp': ['//', ''],
-                     'py': ['#', ''], 'rb': ['#', ''], 'sh': ['#', ''], 'bash': ['#', ''], 'ps1': ['#', ''],
-                     'bat': ['::', ''],
-                     '001': ['(*', '*)'],
-                     'bas': ['\'', '']}
-ALL_SUPPORTED_FILE_TYPES = COMMENT_START_END.keys()
+# default file extensions
+DEFAULT_TYPES = ALL_SUPPORTED_FILE_TYPES
 
 
 def detect_encodings(filenames: list[str]) -> dict[str, str]:
@@ -43,7 +64,7 @@ def detect_encodings(filenames: list[str]) -> dict[str, str]:
     for fn in filenames:
         with open(fn, "rb") as rf:
             raw = rf.read()
-        dict_out[fn] = chardet.detect(raw)["encoding"]
+        dict_out[fn] = detect(raw)["encoding"]
     return dict_out
 
 
@@ -86,7 +107,19 @@ def get_filenames(f_path: str, extensions: list[str]) -> list[str]:
     return files_found
 
 
-def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pref: str='', suff: str='',
+def start_libtranslate_server():
+    """
+
+    :return:
+    """
+    previousdir = path.curdir
+    chdir(TEMP_FOLDER)
+    system('libtranslate')  # TODO don't wait for it to finish! run in background!
+    chdir(previousdir)
+    pass
+
+
+def translate_code(fullpath: str, ext_in: list[str]=DEFAULT_TYPES, pref: str='', suff: str='',
                    raw_file: str=RAW_FILE, ch_file: str=CH_FILE, trans_raw_file: str=TRANS_RAW_FILE,
                    list_file: str=LIST_FILE, char_encoding: str=DEFAULT_ENCODING) -> None:
     """
@@ -125,8 +158,14 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
                       detection for each file.
     :return: None
     """
+    print("Starting libtranslate server.")
+    start_libtranslate_server()
+    print("Started libtranslate server. Waiting for startup.")
+    sleep(2)
+    print("Gathering filenames.")
     files_of_desired_types = get_filenames(fullpath, ext_in)
     if char_encoding == 'detect':
+        print("Detecting encodings.")
         encs = detect_encodings(files_of_desired_types)
         print("Encodings detected.")
     else:
@@ -167,13 +206,14 @@ def translate_code(fullpath: str, ext_in: list[str]=ALL_SUPPORTED_FILE_TYPES, pr
         if len(line) > TOO_LONG:
             too_large.append(raw_lines[fff])
         if not fff % RESTART_EVERY:  # restart the API after so many uses, and clear cache; this is for speed
-            rmtree(path.join(path.curdir, '..', 'db'))
+            rmtree(path.join(TEMP_FOLDER, 'db'))
             lt = LibreTranslateAPI(LOCAL)
         # the entire point of this project: finally translate :)
         tr_lines[fff] = lt.translate(line.removesuffix('\n'), CHINESE_LANGUAGE_CODE, ENGLISH_LANGUAGE_CODE)
         fff = fff + 1
         print('Translated line '+str(fff)+' of '+str(num_lines)+'.')
 
+    rmtree(path.join(TEMP_FOLDER, 'db'))
     print('Translation has taken place.')
     print('Info on lines that are too large:')
     for itm in too_large:
@@ -235,27 +275,32 @@ def standalone_cli():
     The CLI interface. All command line parameters are optional.
     Call the script with the `-h` argument for a detailed explanation.
     """
-    my_args = argparse.ArgumentParser(add_help=True,
-                                      description='This python script uses libtranslate and its python API to ' +
-                                                  'translate chinese text found within code (comments, strings, etc) ' +
-                                                  'to english. For each line containing chinese, the english ' +
-                                                  'translation is appended to the end of the line as a comment.\n\n' +
-                                                  'The script runs on all files with given extensions within the ' +
-                                                  'specified folder and its subfolders. Each associated output file ' +
-                                                  'is saved in the same folder as the input file. Its name is derived' +
-                                                  'from the output file, with a prefix and/or suffix appended.\n\n' +
-                                                  'ATTENTION: If neither prefix nor suffix is specified (and set to ' +
-                                                  'nonempty) then the original file will be replaced. THIS IS THE ' +
-                                                  'DEFAULT BEHAVIOUR.\n\nThe script needs a local libtranslate ' +
-                                                  'server to be running in the background (you can use ' +
-                                                  '`translate_ch_en.sh` for this).\n\nRequirements (can be installed ' +
-                                                  'by running `run_once.sh`): chardet, libtranslate, libtranslatepy.')
-    my_args.add_argument('--dirpath', type=str, default=path.curdir,
+    my_args = argparse.ArgumentParser(add_help=True, formatter_class=argparse.RawDescriptionHelpFormatter, description=
+"""
+This python script uses libtranslate and its python API to translate chinese text found within code (comments, strings,
+etc) to english. For each line containing chinese, the english translation is appended to the end of the line as a
+comment.
+
+The script runs on all files with given extensions within the specified folder and its subfolders. Each associated
+output file is saved in the same folder as the input file. Its name is derived from the output file, with a prefix
+and/or suffix appended.
+
+*** ATTENTION: If neither prefix nor suffix is specified (and set to nonempty) then the original file will be replaced.
+THIS IS THE DEFAULT BEHAVIOUR. ***
+
+The script needs a local libtranslate server to be running in the background (you can use `translate_ch_en.sh` for
+this).
+
+Requirements (can be installed by running `run_once.sh`): chardet, libtranslate, libtranslatepy.
+""",
+                                      prog='translate_ch_en.py',)
+    my_args.add_argument('--dirpath', type=str, default=path.curdir, metaver='/path/to/directory',
                          help='Folder containing files to translate (default is current directory).')
-    my_args.add_argument('--extension', choices=ALL_SUPPORTED_FILE_TYPES, action='append', required=False,
+    my_args.add_argument('--extension', choices=ALL_SUPPORTED_FILE_TYPES, action='extend', required=False,
+                         nargs='*', type=str,
                          help='Use this flag for each file type you want to translate. If unused, the program will ' +
-                              'translate all supported file types. Currently supported: ' + \
-                              str(ALL_SUPPORTED_FILE_TYPES))
+                              'translate the following file types: ' + str(DEFAULT_TYPES) + '\n\nCurrently supported ' +
+                              'file types: ' + str(ALL_SUPPORTED_FILE_TYPES))
     my_args.add_argument('--prefix', type=str, default='',
                          help='Prefix to add to each translated file (default is none). IF BOTH PREFIX AND SUFFIX ' +
                               'ARE EMPTY, THE ORIGINAL FILE IS REPLACED.')
@@ -280,16 +325,25 @@ def standalone_cli():
                               'encoding detection on each file.')
     my_parsed_args = my_args.parse_args()
     dirpath = my_parsed_args.dirpath
+    if not path.isdir(dirpath):
+        print('Directory '+dirpath+' does not exist. Exiting.')
     extension = my_parsed_args.extension
     if not extension:
-        extension = ALL_SUPPORTED_FILE_TYPES
+        extension = DEFAULT_TYPES
     prefix = my_parsed_args.prefix
     suffix = my_parsed_args.suffix
     rawfile = my_parsed_args.rawfile
     chfile = my_parsed_args.isol_chfile
     transrawfile = my_parsed_args.transrawfile
     listfile = my_parsed_args.listfile
+    for file in [rawfile, chfile, transrawfile, listfile]:
+        folder = path.dirname(file)
+        if not path.isdir(folder):
+            print('Directory '+folder+' does not exist. Exiting.')
+            exit(1)
     char_encoding = my_parsed_args.char_encoding
+    if char_encoding != 'detect':
+        lookup(char_encoding)
     translate_code(dirpath, extension, prefix, suffix, rawfile, chfile, transrawfile, listfile, char_encoding)
 
 
