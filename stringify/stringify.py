@@ -19,11 +19,11 @@ def stringify_single(in_str: str, to_be_escaped: list[str]) -> str:
 
 my_argument_parser = argparse.ArgumentParser(
     description='Takes a text file and makes an altered copy with all the special characters escaped.',
-    prog='stringify', epilog='Characters affected: '+','.join(list(REPLACEMENTS.values())))  # usage='', )
-my_argument_parser.add_argument('input_file', type=str, help='Input file')
-my_argument_parser.add_argument('-enc', type=str, required=False, default='UTF-8',
+    prog='stringify', epilog='Characters affected: '+','.join(list(REPLACEMENTS.values())))
+my_argument_parser.add_argument('input_file', type=str, required=True, help='Input file')
+my_argument_parser.add_argument('--enc', type=str, required=False, default='UTF-8',
                                 help='Encoding of input file (default is UTF-8)')
-my_argument_parser.add_argument('-output_file', type=str, required=False, default='',
+my_argument_parser.add_argument('--output_file', type=str, required=False, default='',
                                 help='Output file (default is str_<input file>)')
 my_input_args = my_argument_parser.parse_args()
 input_file = my_input_args.input_file
