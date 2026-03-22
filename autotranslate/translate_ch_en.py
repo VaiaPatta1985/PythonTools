@@ -8,6 +8,7 @@ Run with the `-h` argument for more details.
 import re
 import argparse
 from os import path, walk, getenv, chdir
+from platform import system
 import subprocess
 from time import sleep
 from shutil import rmtree
@@ -18,8 +19,13 @@ from libretranslatepy import LibreTranslateAPI
 
 # general constants
 LOCAL = 'http://127.0.0.1:5000/'
-#TEMP_FOLDER = getenv('TMP') todo
-TEMP_FOLDER = '/tmp'
+if system() == 'Windows':
+    TEMP_FOLDER = getenv('TMP')
+elif system() == 'Linux':
+    TEMP_FOLDER = '/tmp'
+else:
+    print("This platform is not supported.")
+    exit(1)
 
 # natural language constants
 ENGLISH_LANGUAGE_CODE = "en"
@@ -335,6 +341,7 @@ Requirements (can be installed by running `run_once.sh`): chardet, libtranslate,
     dirpath = my_parsed_args.dirpath
     if not path.isdir(dirpath):
         print('Directory '+dirpath+' does not exist. Exiting.')
+        exit(2)
     extension = my_parsed_args.extension
     if not extension:
         extension = DEFAULT_TYPES
@@ -348,7 +355,7 @@ Requirements (can be installed by running `run_once.sh`): chardet, libtranslate,
         folder = path.dirname(file)
         if not path.isdir(folder):
             print('Directory '+folder+' does not exist. Exiting.')
-            exit(1)
+            exit(3)
     char_encoding = my_parsed_args.char_encoding
     if char_encoding != 'detect':
         lookup(char_encoding)
