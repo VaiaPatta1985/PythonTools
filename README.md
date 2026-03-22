@@ -28,7 +28,7 @@ Run `run_once.ps1` to create a virtual environment and install the prerequisites
 ```
 # activate venv
 . $home\translate_venv\activate.ps1
-# run translation script todo which python
+# run translation script
 python translate_ch_en.py <arguments>
 # deactivate venv
 deactivate
