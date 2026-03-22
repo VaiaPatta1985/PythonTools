@@ -7,7 +7,8 @@ Run with the `-h` argument for more details.
 
 import re
 import argparse
-from os import path, walk, getenv, chdir, system
+from os import path, walk, getenv, chdir
+import subprocess
 from time import sleep
 from shutil import rmtree
 from codecs import lookup
@@ -17,7 +18,7 @@ from libretranslatepy import LibreTranslateAPI
 
 # general constants
 LOCAL = 'http://127.0.0.1:5000/'
-#TEMP_FOLDER = getenv('TMP')
+#TEMP_FOLDER = getenv('TMP') todo
 TEMP_FOLDER = '/tmp'
 
 # natural language constants
@@ -107,16 +108,17 @@ def get_filenames(f_path: str, extensions: list[str]) -> list[str]:
     return files_found
 
 
-def start_libtranslate_server():
+def start_libtranslate_server() -> subprocess.Popen:
     """
-
-    :return:
+    Run libtranslate server in the background.
+    Call from the temp folder, so that the `db` directory is created there.
+    :return: the process that started
     """
     previousdir = path.curdir
     chdir(TEMP_FOLDER)
-    system('libtranslate')  # TODO don't wait for it to finish! run in background!
+    libtr_proc = subprocess.Popen(['libtranslate'])
     chdir(previousdir)
-    pass
+    return libtr_proc
 
 
 def translate_code(fullpath: str, ext_in: list[str]=DEFAULT_TYPES, pref: str='', suff: str='',
@@ -158,10 +160,6 @@ def translate_code(fullpath: str, ext_in: list[str]=DEFAULT_TYPES, pref: str='',
                       detection for each file.
     :return: None
     """
-    print("Starting libtranslate server.")
-    start_libtranslate_server()
-    print("Started libtranslate server. Waiting for startup.")
-    sleep(2)
     print("Gathering filenames.")
     files_of_desired_types = get_filenames(fullpath, ext_in)
     if char_encoding == 'detect':
@@ -202,19 +200,29 @@ def translate_code(fullpath: str, ext_in: list[str]=DEFAULT_TYPES, pref: str='',
     tr_lines = [str(k) for k in range(num_lines)]  # just preallocating
     fff = 0
     too_large: list[str] = []
-    for line in ch_lines:
-        if len(line) > TOO_LONG:
-            too_large.append(raw_lines[fff])
-        if not fff % RESTART_EVERY:  # restart the API after so many uses, and clear cache; this is for speed
-            rmtree(path.join(TEMP_FOLDER, 'db'))
-            lt = LibreTranslateAPI(LOCAL)
-        # the entire point of this project: finally translate :)
-        tr_lines[fff] = lt.translate(line.removesuffix('\n'), CHINESE_LANGUAGE_CODE, ENGLISH_LANGUAGE_CODE)
-        fff = fff + 1
-        print('Translated line '+str(fff)+' of '+str(num_lines)+'.')
+    print("Starting libtranslate server.")
+    bkgr_proc = start_libtranslate_server()
+    print("Started libtranslate server. Waiting for startup.")
+    sleep(2)
+    print("Translating.")
+    try:
+        for line in ch_lines:
+            if len(line) > TOO_LONG:
+                too_large.append(raw_lines[fff])
+            if not fff % RESTART_EVERY:  # restart the API after so many uses, and clear cache; this is for speed
+                rmtree(path.join(TEMP_FOLDER, 'db'))
+                lt = LibreTranslateAPI(LOCAL)
+            # the entire point of this project: finally translate :)
+            tr_lines[fff] = lt.translate(line.removesuffix('\n'), CHINESE_LANGUAGE_CODE, ENGLISH_LANGUAGE_CODE)
+            fff = fff + 1
+            print('Translated line '+str(fff)+' of '+str(num_lines)+'.')
+        print('Translation has taken place.')
+    finally:
+        # kill libtranslate background process
+        print('Shutting down libtranslate server.')
+        bkgr_proc.terminate()
+        rmtree(path.join(TEMP_FOLDER, 'db'))
 
-    rmtree(path.join(TEMP_FOLDER, 'db'))
-    print('Translation has taken place.')
     print('Info on lines that are too large:')
     for itm in too_large:
         print('-------------')
