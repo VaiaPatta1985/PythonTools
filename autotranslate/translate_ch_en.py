@@ -7,7 +7,7 @@ Run with the `-h` argument for more details.
 
 import re
 import argparse
-from os import path, walk, getenv, chdir
+from os import path, walk, getenv, chdir, curdir
 from platform import system
 from subprocess import Popen
 from time import sleep
@@ -38,7 +38,7 @@ TOO_LONG = 60000  # 60000 is assuming you want to open the csv with LibreOffice 
 RESTART_EVERY = 500  # restart the API after so many uses, and clear cache; this is for speed
 
 # programming language constants
-COMMENT_START_END = {
+COMMENT_START_END: dict[str, list[str]] = {
     'qml': ['//', ''], 'js': ['//', ''], 'c': ['//', ''], 'cpp': ['//', ''], 'exp': ['//', ''],
     'py': ['#', ''], 'rb': ['#', ''], 'sh': ['#', ''], 'bash': ['#', ''], 'ps1': ['#', ''],
     'bat': ['::', ''],
@@ -46,7 +46,7 @@ COMMENT_START_END = {
 
     '001': ['(*', '*)'],
 }
-ALL_SUPPORTED_FILE_TYPES = COMMENT_START_END.keys()
+ALL_SUPPORTED_FILE_TYPES = list(COMMENT_START_END.keys())
 
 # defaults
 
@@ -59,6 +59,8 @@ LIST_FILE = 'uncertain.csv'
 DEFAULT_ENCODING = 'utf-8'
 # default file extensions
 DEFAULT_TYPES = ALL_SUPPORTED_FILE_TYPES
+
+CURRENT_DIRECTORY = path.abspath(curdir)
 
 
 def detect_encodings(filenames: list[str]) -> dict[str, str]:
@@ -92,7 +94,7 @@ def make_raw_line_list(file_encs: dict[str, str]) -> list[list[str]]:
             all_lines = raw.readlines()
         for line_idx in range(len(all_lines)):
             cur_line = all_lines[line_idx]
-            chinese = re.findall(CHINESE_PATTERN_UNICODE, cur_line)
+            chinese = ''.join(re.findall(CHINESE_PATTERN_UNICODE, cur_line))
             if chinese:
                 splitline = [fn, str(line_idx+1), cur_line, chinese]
                 splitlines_all.append(splitline)
@@ -120,10 +122,13 @@ def start_libtranslate_server() -> Popen:
     Call from the temp folder, so that the `db` directory is created there.
     :return: the process that started
     """
-    previousdir = path.curdir
     chdir(TEMP_FOLDER)
-    libtr_proc = Popen(['libtranslate'])
-    chdir(previousdir)
+    try:
+        libtr_proc = Popen(['libretranslate'])
+    except Exception as e:
+        raise e
+    finally:
+        chdir(CURRENT_DIRECTORY)
     return libtr_proc
 
 
@@ -308,29 +313,29 @@ this).
 Requirements (can be installed by running `run_once.sh`): chardet, libtranslate, libtranslatepy.
 """,
                                       prog='translate_ch_en.py',)
-    my_args.add_argument('--dirpath', type=str, default=path.curdir, metaver='/path/to/directory',
+    my_args.add_argument('--dirpath', type=str, default=CURRENT_DIRECTORY, metavar='/path/to/directory',
                          help='Folder containing files to translate (default is current directory).')
-    my_args.add_argument('--extension', choices=ALL_SUPPORTED_FILE_TYPES, action='extend', required=False,
-                         nargs='*', type=str,
+    my_args.add_argument('--extension', choices=ALL_SUPPORTED_FILE_TYPES, action='append', required=False,
+                         type=str, metavar=', '.join(ALL_SUPPORTED_FILE_TYPES),
                          help='Use this flag for each file type you want to translate. If unused, the program will ' +
-                              'translate the following file types: ' + str(DEFAULT_TYPES) + '\n\nCurrently supported ' +
-                              'file types: ' + str(ALL_SUPPORTED_FILE_TYPES))
+                              'translate the following file types: ' + str(DEFAULT_TYPES) + '. Currently supported ' +
+                              'file types: ' + str(ALL_SUPPORTED_FILE_TYPES) + '.')
     my_args.add_argument('--prefix', type=str, default='',
                          help='Prefix to add to each translated file (default is none). IF BOTH PREFIX AND SUFFIX ' +
                               'ARE EMPTY, THE ORIGINAL FILE IS REPLACED.')
     my_args.add_argument('--suffix', type=str, default='',
                          help='Suffix to add to each translated file (default is none). IF BOTH PREFIX AND SUFFIX ' +
                               'ARE EMPTY, THE ORIGINAL FILE IS REPLACED.')
-    my_args.add_argument('--rawfile', type=str, default=RAW_FILE,
+    my_args.add_argument('--rawfile', type=str, default=path.join(CURRENT_DIRECTORY, RAW_FILE),
                          help='Output file that lists every line containing chinese. Default is `' + RAW_FILE + '` ' +
                               'and is created in the current directory.')
-    my_args.add_argument('--isol_chfile', type=str, default=CH_FILE,
+    my_args.add_argument('--isol_chfile', type=str, default=path.join(CURRENT_DIRECTORY, CH_FILE),
                          help='Output file containing isolated chinese per line. Default is `' + CH_FILE + '` and is ' +
                               'created in the current directory.')
-    my_args.add_argument('--transrawfile', type=str, default=TRANS_RAW_FILE,
+    my_args.add_argument('--transrawfile', type=str, default=path.join(CURRENT_DIRECTORY, TRANS_RAW_FILE),
                          help='Output file that lists every translated line. Default is `' + TRANS_RAW_FILE + '` and ' +
                               'is created in the current directory.')
-    my_args.add_argument('--listfile', type=str, default=LIST_FILE,
+    my_args.add_argument('--listfile', type=str, default=path.join(CURRENT_DIRECTORY, LIST_FILE),
                          help='Output file in csv format (including header) that lists chinese, translations, and ' +
                               'corresponding line locations. Default is `' + LIST_FILE + '` and is created in the ' +
                               'current directory.')
