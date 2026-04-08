@@ -16,6 +16,5 @@ fi
 # venv initialisation
 python -m venv "$HOME/translate_venv"
 source "$HOME/translate_venv/bin/activate"
-pip install libretranslate
-pip install libretranslatepy
+pip install libretranslate libretranslatepy
 deactivate

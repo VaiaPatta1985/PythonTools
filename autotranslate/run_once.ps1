@@ -1,8 +1,13 @@
-winget install uchardet
-# todo which python
-start -argumentlist "-m venv $home\translate_venv" -filepath "$home\appdata\local\programs\python\Python314\python.exe" -wait -nonewwindow
-. $home\translate_venv\activate.ps1
-pip install libretranslate
-pip install libretranslatepy
-deactivate
+# This script needs to run once to install prerequisites
+# chardet is installed globally
+# libretranslate and libretranslatepy are installed in a virtual environment
+# the virtual environment ("translate_venv") is created within the home folder
 
+# install chardet for encoding detection
+winget install uchardet
+# venv initialisation
+$python_exec = (Get-Command python|Select-Object Source).Source
+start -argumentlist "-m venv $home\translate_venv" -filepath "$python_exec" -wait -nonewwindow
+. $home\translate_venv\activate.ps1
+pip install libretranslate libretranslatepy
+deactivate

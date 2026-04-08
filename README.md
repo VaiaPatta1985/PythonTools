@@ -23,11 +23,11 @@ To see help documentation with more details, run it with the `-h` argument. **It
 
 ### Usage (Windows)
 
-Run `run_once.ps1` to create a virtual environment and install the prerequisites (please note that `chardet` will be installed globally). Then you can run the script with
+Firstly, make sure that typing `python` in the PowerShell Terminal calls a **valid** python executable, as `$home\AppData\Local\Microsoft\WindowsApps\python.exe` may instead open Microsoft Store. Next, run `run_once.ps1` to create a virtual environment and install the prerequisites (please note that `chardet` will be installed globally). Then you can run the script with
 
 ```
 # activate venv
-. $home\translate_venv\activate.ps1
+. $home\translate_venv\Scripts\Activate.ps1
 # run translation script
 python translate_ch_en.py <arguments>
 # deactivate venv
@@ -36,9 +36,9 @@ deactivate
 
 To see help documentation with more details, run it with the `-h` argument. **It is highly recommended that you read that documentation carefully before using the script in any other way.**
 
-## cparser
+## cparser (COMING SOON)
 
-Given a C source file as input, this tool parses C syntax (up to a point) and outputs results to json. The main logic was transcribed from `coderay`'s `ruby` code (todo repo link). A useful script if you want to make a tool such as an editor or a code-simplification aid. Or a [Bitfieldiser](https://github.com/VaiaPatta1985/Bitfieldiser)!
+Given a C source file as input, this tool parses C syntax (up to a point) and outputs results to json. *This is a work in progress.*
 
 ## stringify
 

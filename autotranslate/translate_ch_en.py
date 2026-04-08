@@ -9,7 +9,7 @@ import re
 import argparse
 from os import path, walk, getenv, chdir
 from platform import system
-import subprocess
+from subprocess import Popen
 from time import sleep
 from shutil import rmtree
 from codecs import lookup
@@ -114,7 +114,7 @@ def get_filenames(f_path: str, extensions: list[str]) -> list[str]:
     return files_found
 
 
-def start_libtranslate_server() -> subprocess.Popen:
+def start_libtranslate_server() -> Popen:
     """
     Run libtranslate server in the background.
     Call from the temp folder, so that the `db` directory is created there.
@@ -122,7 +122,7 @@ def start_libtranslate_server() -> subprocess.Popen:
     """
     previousdir = path.curdir
     chdir(TEMP_FOLDER)
-    libtr_proc = subprocess.Popen(['libtranslate'])
+    libtr_proc = Popen(['libtranslate'])
     chdir(previousdir)
     return libtr_proc
 
