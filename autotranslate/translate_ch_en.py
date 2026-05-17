@@ -307,8 +307,7 @@ and/or suffix appended.
 *** ATTENTION: If neither prefix nor suffix is specified (and set to nonempty) then the original file will be replaced.
 THIS IS THE DEFAULT BEHAVIOUR. ***
 
-The script needs a local libtranslate server to be running in the background (you can use `translate_ch_en.sh` for
-this).
+The script needs a local libtranslate server to be running in the background.
 
 Requirements (can be installed by running `run_once.sh`): chardet, libtranslate, libtranslatepy.
 """,

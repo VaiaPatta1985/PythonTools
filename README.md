@@ -8,7 +8,7 @@ Automatic translation from Chinese to English, meant for comments in code files.
 
 ### Usage (Linux)
 
-Run `run_once.sh` to create a virtual environment and install the prerequisites (please note that `chardet` will be installed globally). Then you can run the script with
+Run `run_once.sh` to create a virtual environment and install the prerequisites. Then you can run the script with
 
 ```
 # activate venv
@@ -23,7 +23,7 @@ To see help documentation with more details, run it with the `-h` argument. **It
 
 ### Usage (Windows)
 
-Firstly, make sure that typing `python` in the PowerShell Terminal calls a **valid** python executable, as `$home\AppData\Local\Microsoft\WindowsApps\python.exe` may instead open Microsoft Store. Next, run `run_once.ps1` to create a virtual environment and install the prerequisites (please note that `chardet` will be installed globally). Then you can run the script with
+Firstly, make sure that typing `python` in the PowerShell Terminal calls a **valid** python executable, as `$home\AppData\Local\Microsoft\WindowsApps\python.exe` may instead open Microsoft Store. Next, run `run_once.ps1` to create a virtual environment and install the prerequisites. Then you can run the script with
 
 ```
 # activate venv
@@ -38,7 +38,7 @@ To see help documentation with more details, run it with the `-h` argument. **It
 
 ## cparser (COMING SOON)
 
-Given a C source file as input, this tool parses C syntax (up to a point) and outputs results to json. *This is a work in progress.*
+Given a C source file as input, this tool tokenises C syntax and outputs results to json. *This is a work in progress.*
 
 ## stringify
 
