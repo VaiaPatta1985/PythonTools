@@ -21,8 +21,10 @@ from libretranslatepy import LibreTranslateAPI
 LOCAL = 'http://127.0.0.1:5000/'
 if system() == 'Windows':
     TEMP_FOLDER = getenv('TMP')
+    DB_FILES_FOLDER = 'libretranslate-files-translate'
 elif system() == 'Linux':
     TEMP_FOLDER = '/tmp'
+    DB_FILES_FOLDER = 'db'  # todo fix
 else:
     print("This platform is not supported.")
     exit(1)
@@ -119,7 +121,7 @@ def get_filenames(f_path: str, extensions: list[str]) -> list[str]:
 def start_libtranslate_server() -> Popen:
     """
     Run libtranslate server in the background.
-    Call from the temp folder, so that the `db` directory is created there.
+    Call from the temp folder, so that the temporary directory is created there.
     :return: the process that started
     """
     chdir(TEMP_FOLDER)
@@ -221,7 +223,7 @@ def translate_code(fullpath: str, ext_in: list[str]=DEFAULT_TYPES, pref: str='',
             if len(line) > TOO_LONG:
                 too_large.append(raw_lines[fff])
             if not fff % RESTART_EVERY:  # restart the API after so many uses, and clear cache; this is for speed
-                rmtree(path.join(TEMP_FOLDER, 'db'))
+                rmtree(path.join(TEMP_FOLDER, DB_FILES_FOLDER))
                 lt = LibreTranslateAPI(LOCAL)
             # the entire point of this project: finally translate :)
             tr_lines[fff] = lt.translate(line.removesuffix('\n'), CHINESE_LANGUAGE_CODE, ENGLISH_LANGUAGE_CODE)
@@ -232,7 +234,10 @@ def translate_code(fullpath: str, ext_in: list[str]=DEFAULT_TYPES, pref: str='',
         # kill libtranslate background process
         print('Shutting down libtranslate server.')
         bkgr_proc.terminate()
-        rmtree(path.join(TEMP_FOLDER, 'db'))
+        try:
+            rmtree(path.join(TEMP_FOLDER, DB_FILES_FOLDER))
+        except FileNotFoundError:
+            pass
 
     print('Info on lines that are too large:')
     for itm in too_large:
