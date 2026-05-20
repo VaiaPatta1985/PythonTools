@@ -5,6 +5,6 @@
 # venv initialisation
 $python_exec = (Get-Command python|Select-Object Source).Source
 start -argumentlist "-m venv $home\translate_venv" -filepath "$python_exec" -wait -nonewwindow
-. $home\translate_venv\activate.ps1
+. $home\translate_venv\scripts\activate.ps1
 pip install libretranslate libretranslatepy
 deactivate

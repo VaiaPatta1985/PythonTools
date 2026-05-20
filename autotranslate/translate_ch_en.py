@@ -124,7 +124,7 @@ def start_libtranslate_server() -> Popen:
     """
     chdir(TEMP_FOLDER)
     try:
-        libtr_proc = Popen(['libretranslate'])
+        libtr_proc = Popen('libretranslate')
     except Exception as e:
         raise e
     finally:
