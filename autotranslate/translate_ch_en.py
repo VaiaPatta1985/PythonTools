@@ -223,7 +223,10 @@ def translate_code(fullpath: str, ext_in: list[str]=DEFAULT_TYPES, pref: str='',
             if len(line) > TOO_LONG:
                 too_large.append(raw_lines[fff])
             if not fff % RESTART_EVERY:  # restart the API after so many uses, and clear cache; this is for speed
-                rmtree(path.join(TEMP_FOLDER, DB_FILES_FOLDER))
+                try:
+                    rmtree(path.join(TEMP_FOLDER, DB_FILES_FOLDER))
+                except FileNotFoundError:
+                    pass
                 lt = LibreTranslateAPI(LOCAL)
             # the entire point of this project: finally translate :)
             tr_lines[fff] = lt.translate(line.removesuffix('\n'), CHINESE_LANGUAGE_CODE, ENGLISH_LANGUAGE_CODE)
