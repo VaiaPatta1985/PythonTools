@@ -290,8 +290,9 @@ def translate_code(fullpath: str, ext_in: list[str]=DEFAULT_TYPES, pref: str='',
                 break
         # write to file with specified filename
         split_filename = path.split(filename)
-        out_filename = split_filename[0] + pref + \
-                       split_filename[1].removesuffix('.'+ext).removesuffix('.'+ext.upper()) + suff + '.' + ext
+        out_filename = path.join(split_filename[0],
+                                 pref + split_filename[1].removesuffix('.'+ext).removesuffix('.'+ext.upper()) +
+                                 suff + '.' + ext)
         with open(out_filename, "w", encoding=encs[filename]) as f_out:
             f_out.writelines(in_lines)
         print("Translated file " + str(f) + " of " + str(nf) + ".")
