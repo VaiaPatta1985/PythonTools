@@ -4,7 +4,9 @@ A collection of Python tools that can make a C developer's life a little easier,
 
 ## autotranslate
 
-Automatic translation from Chinese to English, meant for comments in code files. Chinese is detected based on the symbols used, so you can easily adapt it for any other language that doesn't use the latin alphabet. The tool uses the external translation program `libtranslate` (all rights reserved). Translated text is added to the code as comments on the same line. Works for `C` and for a lot of other programming languages, and can easily be extended to include more programming languages.
+Automatic translation from Chinese to English, meant for comments in code files. Chinese is detected based on the symbols used, so you can easily adapt it for any other language that doesn't use the latin alphabet. The tool uses [the external translation program `libretranslate`](https://www.libretranslate.com/) (all rights reserved). Translated text is added to the code as comments on the same line. Works for `C` and for a lot of other programming languages, and can easily be extended to include more programming languages.
+
+**Note:** At the moment of writing these lines, there is a bug that only appears occasionally, where the local server running `libretranslate` refuses connections from the client API. Until this is dealt with, a workaround is to launch `libretranslate` manually once, and wait for the local server to start running before closing it; after this, `autotranslate` will run properly.
 
 ### Usage (Linux)
 
@@ -23,7 +25,7 @@ To see help documentation with more details, run it with the `-h` argument. **It
 
 ### Usage (Windows)
 
-Firstly, make sure that typing `python` in the PowerShell Terminal calls a **valid** python executable, as `$home\AppData\Local\Microsoft\WindowsApps\python.exe` may instead open Microsoft Store. Next, run `run_once.ps1` to create a virtual environment and install the prerequisites. Then you can run the script with
+Firstly, make sure that typing `python` in the PowerShell Terminal calls a **valid** python executable, as `$home\AppData\Local\Microsoft\WindowsApps\python.exe` may instead open Microsoft Store. (You may want to use [Python Install Manager](https://apps.microsoft.com/detail/9nq7512cxl7t) to sort this out.) Next, run `run_once.ps1` to create a virtual environment and install the prerequisites. Then you can run the script with
 
 ```
 # activate venv
