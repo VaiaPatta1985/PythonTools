@@ -127,8 +127,6 @@ def start_libtranslate_server() -> Popen:
     chdir(TEMP_FOLDER)
     try:
         libtr_proc = Popen('libretranslate', stdout=DEVNULL, stderr=DEVNULL)
-    except Exception as e:
-        raise e
     finally:
         chdir(CURRENT_DIRECTORY)
     return libtr_proc
