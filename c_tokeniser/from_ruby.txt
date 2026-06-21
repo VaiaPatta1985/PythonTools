@@ -1,0 +1,184 @@
+def scan_tokens
+
+  state = :initial
+  label_expected = true
+  case_expected = false
+  label_expected_before_preproc_line = nil
+  in_preproc_line = false
+
+  until eos?
+
+    case state
+
+    when :initial
+
+      if match = scan(%r \s+ | \\\n /)
+        if in_preproc_line && match != "\\\n" && match.index(\n\)
+          in_preproc_line = false
+          label_expected = label_expected_before_preproc_line
+        end
+        json.text_token match, :space
+
+      elsif match = scan(%r // [^\n\\]* (?: \\. [^\n\\]* )* | /\* (?: .*? \*/ | .* ) !x)
+        json.text_token match, :comment
+
+      elsif match = scan(%r [-+*=<>?:;,!&^|()\[\]{}~%]+ | \/=? | \.(?!\d) /)
+        label_expected = match =~ %r[;\{\}]/
+        if case_expected
+          label_expected = true if match == ':'
+          case_expected = false
+        end
+        json.text_token match, :operator
+
+      elsif match = scan(%r [A-Za-z_][A-Za-z_0-9]* /)
+        kind = IDENT_KIND[match]
+        if kind == :ident && label_expected && !in_preproc_line && scan(%r:(?!:)/)
+          kind = :label
+          match << matched
+        else
+          label_expected = false
+          if kind == :keyword
+            case match
+            when 'case', 'default'
+              case_expected = true
+            end
+          end
+        end
+        json.text_token match, kind
+
+      elsif match = scan(%rL?"/)
+        json.begin_group :string
+        if match[0] == LL
+          json.text_token 'L', :modifier
+          match = '"'
+        end
+        json.text_token match, :delimiter
+        state = :string
+
+      elsif match = scan(%r \# \s* if \s* 0 /)
+        match << scan_until(%r ^\# (?:elif|else|endif) .*? $ | \z /m) unless eos?
+        json.text_token match, :comment
+\\
+      elsif match = scan(%r#[ \t]*(\w*)/)
+        json.text_token match, :preprocessor
+        in_preproc_line = true
+        label_expected_before_preproc_line = label_expected
+        state = :include_expected if self[1] == 'include'
+
+      elsif match = scan(%r L?' (?: [^\'\n\\] | \\ #{ESCAPE} )? '? /x)
+        label_expected = false
+        json.text_token match, :char
+
+      elsif match = scan(%r\$/)
+        json.text_token match, :ident
+      
+      elsif match = scan(%r0[xX][0-9A-Fa-f]+/)
+        label_expected = false
+        json.text_token match, :hex
+
+      elsif match = scan(%r(?:0[0-7]+)(?![89.eEfF])/)
+        label_expected = false
+        json.text_token match, :octal
+
+      elsif match = scan(%r(?:\d+)(?![.eEfF])L?L?/)
+        label_expected = false
+        json.text_token match, :integer
+
+      elsif match = scan(%r\d[fF]?|\d*\.\d+(?:[eE][+-]?\d+)?[fF]?|\d+[eE][+-]?\d+[fF]?/)
+        label_expected = false
+        json.text_token match, :float
+
+      else
+        json.text_token getch, :error
+
+      end
+
+    when :string
+      if match = scan(%r[^\\\n"]+/)
+        json.text_token match, :content
+      elsif match = scan(%r"/)
+        json.text_token match, :delimiter
+        json.end_group :string
+        state = :initial
+        label_expected = false
+      elsif match = scan(%r \\ (?: #{ESCAPE} | #{UNICODE_ESCAPE} ) /ox)
+        json.text_token match, :char
+      elsif match = scan(%r \\ | $ /)
+        json.end_group :string
+        json.text_token match, :error
+        state = :initial
+        label_expected = false
+      else
+        raise_inspect "else case \" reached; %p not handled." % peek(1), json
+      end
+
+    when :include_expected
+      if match = scan(%r<[^>\n]+>?|"[^"\n\\]*(?:\\.[^"\n\\]*)*"?/)
+        json.text_token match, :include
+        state = :initial
+
+      elsif match = scan(%r\s+/)
+        json.text_token match, :space
+        state = :initial if match.index \n\
+
+      else
+        state = :initial
+
+      end
+
+    else
+      raise_inspect 'Unknown state', json
+
+    end
+
+  end
+
+  if state == :string
+    json.end_group :string
+  end
+
+  json
+end
+
+
+
+def begin_group kind
+  append :type => 'block', :action => 'open', :kind => kind
+end
+
+def begin_line kind
+  append :type => 'block', :action => 'begin_line', :kind => kind
+end
+
+def end_group kind
+  append :type => 'block', :action => 'close', :kind => kind
+end
+
+def end_line kind
+  append :type => 'block', :action => 'end_line', :kind => kind
+end
+
+def text_token text, kind
+  append :type => 'text', :text => text, :kind => kind
+end
+
+def append data
+  if @first
+    @first = false
+  else
+    @out << ','
+  end
+  
+  @out << data.to_json
+end
+
+def finish
+  @out << ']'
+end
+
+def setup
+  super
+  
+  @first = true
+  @out << '['
+end

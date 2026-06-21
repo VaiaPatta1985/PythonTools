@@ -1,0 +1,309 @@
+"""
+Takes a C file as input, tokenises C syntax and outputs results to json.
+Based on Kornelius Kalnbach's Coderay, and specifically this source file:
+https://github.com/rubychan/coderay/blob/b5b3430d4635682b767c44469e28a70fe234187e/lib/coderay/scanners/c.rb
+Their code used in compliance with MIT license, which Coderay was published under:
+https://github.com/rubychan/coderay/blob/228e87307c2faab06f854a79ab592a2737c20f65/MIT-LICENSE
+"""
+
+
+from enum import Enum
+import re
+from typing import NamedTuple
+import argparse
+import json
+
+
+State = Enum('State', ['INITIAL', 'STRING', 'INCLUDE_EXPECTED'])
+TokenType = Enum('TokenType', ['TEXT', 'BLOCK'])
+Action = Enum('Action', ['OPEN', 'BEGIN_LINE', 'CLOSE', 'END_LINE', 'NONE'])
+Kind = Enum('Kind', ['IDENT',  # unidentified
+                     'KEYWORD', 'DIRECTIVE', 'PREDEFINED_TYPE', 'PREDEFINED_CONSTANT',  # reserved words
+                     'LABEL',  # case of switch statement
+                     #'ERROR',
+                     'MODIFIER', 'DELIMITER', 'PREPROCESSOR', 'CHAR', 'HEX', 'OCTAL', 'INTEGER', 'FLOAT',
+                     'STRING', 'SPACE', 'COMMENT', 'OPERATOR', 'CONTENT', 'INCLUDE'])
+Token = NamedTuple('Token', [('token_type', TokenType), ('action', Action), ('text', str), ('kind', Kind)])
+
+
+def one_of(reg1: re.Pattern, reg2: re.Pattern, flags: re.RegexFlag=re.NOFLAG) -> re.Pattern:
+    """
+    Regex that matches both given patterns.
+    Ignores original regex flags of each input pattern.
+    Optionally specify flags for output pattern.
+    :param reg1: first regex pattern
+    :param reg2: second regex pattern
+    :param flags: output regex flags
+    :return: pattern to the effect of ["reg1 or reg2", flags]
+    """
+    return re.compile('(?:(' + reg1.pattern + ')|(' + reg2.pattern + '))', flags)
+
+
+def pattern_compose(reg1: re.Pattern, reg2: re.Pattern, flags: re.RegexFlag=re.NOFLAG) -> re.Pattern:
+    """
+    Regex that mathces the sequence of input patterns in the given order.
+    Ignores original regex flags of each input pattern.
+    Optionally specify flags for output pattern.
+    :param reg1: first regex pattern
+    :param reg2: second regex pattern
+    :param flags: output regex flags
+    :return: pattern to the effect of ["reg1 reg2", flags]
+    """
+    return re.compile(reg1.pattern + reg2.pattern, flags)
+
+
+SECONDARY_PATTERNS: dict[str, re.Pattern] = {
+    'LABEL': r':(?!:)',
+    'PREPROCESSOR_IF_SUBBLOCK_END': re.compile('^\# (?:elif|else|endif) .*? $ | \Z', re.MULTILINE),
+    'COMMAND_BLOCK': r'[;\{\}]',
+    'ESCAPE': one_of(re.compile('[rbfntv\n\\'+"'"+'"]'), re.compile('x[a-fA-F0-9]{1,2}|[0-7]{1,3}')),
+    'ESCAPED_ESCAPE': pattern_compose(r'\\', ESCAPE),
+    'UNICODE_ESCAPE': r'u[a-fA-F0-9]{4}|U[a-fA-F0-9]{8}',
+}
+
+MAIN_PATTERNS: dict[str, re.Pattern] = {
+    'WHITESPACE': r'\s+ | \\\n',
+    'COMMENT_GENERAL': r'// [^\n\\]* (?: \\. [^\n\\]* )* | /\* (?: .*? \*/ | .* )',
+    'OPERATOR': r'[-+*=<>?:;,!&^|()\[\]{}~%]+ | \/=? | \.(?!\d)',
+    'ALPHANUMERIC_STARTING_WITH_LETTER': r'[A-Za-z_][A-Za-z_0-9]*',
+    'STRING': r'[:alpha:]?"',
+    'PREPROCESSOR_IF_SUBBLOCK_BEGIN': r'\# \s* if \s* 0',
+    'PREPROCESSOR_INSTRUCTION': r'#[ \t]*(\w*)',
+    'CHAR': pattern_compose(r"[:alpha:]?'",
+                            pattern_compose(one_of(r"[^\'\n\\]", SECONDARY_PATTERNS.ESCAPED_ESCAPE), r"?'?")),
+    'IDENT': r'\$',
+    'HEX': r'0[xX][0-9A-Fa-f]+',
+    'OCTAL': r'(?:0[0-7]+)(?![89.eEfF])',
+    'INTEGER': r'(?:\d+)(?![.eEfF])[:alpha:]?[:alpha:]?',
+    'FLOAT': r'\d[fF]?|\d*\.\d+(?:[eE][+-]?\d+)?[fF]?|\d+[eE][+-]?\d+[fF]?',
+    'CONTENT': r'[^\\\n"]+',
+    'STRING_DELIMITER': r'"',
+    'TEXT_CHAR': pattern_compose(r'\\' + one_of(SECONDARY_PATTERNS.ESCAPE, SECONDARY_PATTERNS.UNICODE_ESCAPE)),
+    #'STRING_IN_BLOCK': r'\\ | $',
+    'INCLUDE': r'<[^>\n]+>?|"[^"\n\\]*(?:\\.[^"\n\\]*)*"?',
+    'SPACE': r'\s+',
+}
+
+KEYWORDS: list[str] = ['asm', 'break', 'case', 'continue', 'default', 'do', 'else', 'enum', 'for', 'goto', 'if',
+                       'return', 'sizeof', 'struct', 'switch', 'typedef', 'union', 'while', 'restrict']
+DIRECTIVES: list[str] = ['auto', 'extern', 'register', 'static', 'void', 'const', 'volatile', 'inline']
+PREDEFINED_TYPES: list[str] = ['int', 'long', 'short', 'char', 'signed', 'unsigned', 'float', 'double', 'bool',
+                               'complex']
+PREDEFINED_CONSTANTS: list[str] = ['EOF', 'NULL', 'true', 'false']
+LIST_TO_KIND: dict[list[str], Kind] = {KEYWORDS: Kind.KEYWORD,
+                                       DIRECTIVES: Kind.DIRECTIVE,
+                                       PREDEFINED_TYPES: Kind.PREDEFINED_TYPE,
+                                       PREDEFINED_CONSTANTS: Kind.PREDEFINED_CONSTANT}
+KINDS_OF_RESERVED_WORDS = LIST_TO_KIND.keys()
+
+
+def scan_tokens(input_string: str) -> list[Token]:
+    """
+    Takes the source code as input and outputs a list of syntactic elements and their properties.
+    Corresponds to the `scan_tokens` method in file `c.rb` of the Coderay repository.
+    :param input_string: the entire content of the C source file
+    :return: a list of Tokens, each a tuple comprising the following elements:
+     token type (enum): either text or block;
+     action (enum): open, close, begin line, end line, or none;
+     text (str): usually the corresponding text from the source code;
+     kind (enum): whether the parsed text is a keyword, an integer, a comment, etc
+                  (see Kind enum for the full list)
+    """
+    state = State.INITIAL
+    label_expected = True
+    case_expected = False
+    label_expected_before_preproc_line = False
+    in_preproc_line = False
+    tokens: list[Token] = []
+    input_length = len(input_string)
+    position = 0
+    while position < input_length:
+        regex_match = None
+        previous_position = position
+        while regex_match is None:
+            for pattern in MAIN_PATTERNS:
+                regex_match = pattern.fullmatch(input_string[previous_position:position])
+                if regex_match is not None:
+                    break
+            position += 1
+        tentative_regex_match = regex_match
+        new_position = position
+        while tentative_regex_match is not None:
+            regex_match = tentative_regex_match
+            position = new_position
+            new_position += 1
+            tentative_regex_match = pattern.fullmatch(input_string[previous_position:new_position])
+
+        match state:
+            case State.INITIAL:
+                if pattern == MAIN_PATTERNS.WHITESPACE:
+                    if in_preproc_line and regex_match[0] != '\\\n' and regex_match[0].find('\n') > -1:
+                        in_preproc_line = False
+                        label_expected = label_expected_before_preproc_line
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.SPACE))
+                elif pattern == MAIN_PATTERNS.COMMENT_GENERAL:
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.COMMENT))
+                elif pattern == MAIN_PATTERNS.OPERATOR:
+                    label_expected = SECONDARY_PATTERNS.COMMAND_BLOCK.match(regex_match[0]) is not None
+                    if case_expected:
+                        if regex_match[0] == ':':
+                            label_expected = True
+                        case_expected = False
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.OPERATOR))
+                elif pattern == MAIN_PATTERNS.ALPHANUMERIC_STARTING_WITH_LETTER:
+                    current_kind = Kind.IDENT
+                    for kind in KINDS_OF_RESERVED_WORDS:
+                        if regex_match[0] in kind:
+                            current_kind = LIST_TO_KIND[kind]
+                            break
+                    if current_kind == Kind.IDENT and label_expected and not in_preproc_line:
+                        tentative_regex_match = regex_match
+                        new_position = position
+                        old_position = position
+                        while tentative_regex_match is not None:
+                            regex_match = tentative_regex_match
+                            position = new_position
+                            new_position += 1
+                            tentative_regex_match = \
+                                SECONDARY_PATTERNS.LABEL.fullmatch(input_string[previous_position:new_position])
+                        if old_position == position:
+                            label_expected = False
+                        else:
+                            current_kind = Kind.LABEL
+                    else:
+                        label_expected = False
+                    if not label_expected and regex_match[0] in ['case', 'default']:
+                            case_expected = True
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=current_kind))
+                elif pattern == MAIN_PATTERNS.STRING:
+                    tokens.append(Token(token_type=TokenType.BLOCK, action=Action.OPEN, text='', kind=Kind.STRING))
+                    if regex_match[0].isalpha():
+                        tokens.append(
+                            Token(token_type=TokenType.TEXT, action=Action.NONE, text='L', kind=Kind.MODIFIER))
+                        regex_match[0] = '\"'
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.DELIMITER))
+                    state = State.STRING
+                elif pattern == MAIN_PATTERNS.PREPROCESSOR_IF_SUBBLOCK_BEGIN:
+                    content = ''
+                    content_end = position
+                    content_match = None
+                    if position < input_length:
+                        while content_match is None:
+                            content_end += 1
+                            content = input_string[position:content_end]
+                            content_match = SECONDARY_PATTERNS.PREPROCESSOR_IF_SUBBLOCK_END.search(content)
+                        regex_match[0] = regex_match[0] + content
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.COMMENT))
+                elif pattern == MAIN_PATTERNS.PREPROCESSOR_INSTRUCTION:
+                    tokens.append(Token(
+                        token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.PREPROCESSOR))
+                    in_preproc_line = True
+                    label_expected_before_preproc_line = label_expected
+                    if regex_match[1] == 'include':
+                        state = State.INCLUDE_EXPECTED
+                elif pattern == MAIN_PATTERNS.CHAR:
+                    label_expected = False
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.CHAR))
+                elif pattern == MAIN_PATTERNS.IDENT:
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.IDENT))
+                elif pattern == MAIN_PATTERNS.HEX:
+                    label_expected = False
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.HEX))
+                elif pattern == MAIN_PATTERNS.OCTAL:
+                    label_expected = False
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.OCTAL))
+                elif pattern == MAIN_PATTERNS.INTEGER:
+                    label_expected = False
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.INTEGER))
+                elif pattern == MAIN_PATTERNS.FLOAT:
+                    label_expected = False
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.FLOAT))
+                else:
+                    raise Exception()
+                    #tokens.append(Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.ERROR))
+            case State.STRING:
+                if pattern == MAIN_PATTERNS.CONTENT:
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.CONTENT))
+                elif pattern == MAIN_PATTERNS.STRING_DELIMITER:
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.DELIMITER))
+                    tokens.append(Token(token_type=TokenType.BLOCK, action=Action.CLOSE, text='', kind=Kind.STRING))
+                    state = State.INITIAL
+                    label_expected = False
+                elif pattern == MAIN_PATTERNS.TEXT_CHAR:
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.CHAR))
+#                elif pattern == MAIN_PATTERNS.STRING_IN_BLOCK:
+#                    tokens.append(Token(token_type=TokenType.BLOCK, action=Action.CLOSE, text='', kind=Kind.STRING))
+#                    tokens.append(Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.ERROR))
+#                    state = State.INITIAL
+#                    label_expected = False
+                else:
+                    raise Exception()
+            case State.INCLUDE_EXPECTED:
+                if pattern == MAIN_PATTERNS.INCLUDE:
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.INCLUDE))
+                    state = State.INITIAL
+                elif pattern == MAIN_PATTERNS.SPACE:
+                    tokens.append(
+                        Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.SPACE))
+                    if regex_match[0].find('\n') > -1:
+                        state = State.INITIAL
+                else:
+                    state = State.INITIAL
+            case _:
+                raise Exception()
+
+    if state == State.STRING:
+        tokens.append(Token(token_type=TokenType.BLOCK, action=Action.END_LINE, text='', kind=Kind.STRING))
+    return tokens
+
+
+def c_to_json(c_file: str) -> json:
+    """
+    Main function. Takes a C file and returns a json object with the parsed C syntax.
+    :param c_file: C file
+    :return: json object containing the parsed C syntax
+    """
+    token_list = tokeniser.scan_tokens(c_file)
+
+    # todo turn it into json
+
+
+def parse(c_code: str, jsn: str) -> None:
+    """
+    This is the entry point to use cparser as a tool.
+    :param c_code: file containing C code
+    :param jsn: output file (omit or use empty string for stdout)
+    :return: None
+    """
+    blob = c_to_json(c_code)
+    if jsn:
+        json.dump(blob, open(jsn, "w"))
+    else:
+        print(json.dumps(blob))
+
+
+if __name__ == '__main__':
+    my_args = argparse.ArgumentParser()
+    my_args.add_argument('-i', '--input', required=True, help='input file')
+    my_args.add_argument('-o', '--output', required=False, default='',
+                         help='output file (default: stdout)')
+    parsed_args = my_args.parse_args()
+    input_file = parsed_args.input
+    output_file = parsed_args.output
+    parse(input_file, output_file)

@@ -9,7 +9,7 @@ import re
 import argparse
 from os import path, walk, getenv, chdir, curdir
 from platform import system
-from subprocess import Popen, DEVNULL
+from subprocess import Popen, DEVNULL, PIPE
 from time import sleep
 from shutil import rmtree
 from codecs import lookup
@@ -20,7 +20,6 @@ from libretranslatepy import LibreTranslateAPI
 # general constants
 LOCAL = 'http://127.0.0.1:5000/'
 DB_FILES_FOLDER = 'libretranslate-files-translate'
-STARTUP_DELAY = 2
 if system() == 'Windows':
     TEMP_FOLDER = getenv('TMP')
 elif system() == 'Linux':
@@ -126,7 +125,7 @@ def start_libtranslate_server() -> Popen:
     """
     chdir(TEMP_FOLDER)
     try:
-        libtr_proc = Popen('libretranslate', stdout=DEVNULL, stderr=DEVNULL)
+        libtr_proc = Popen('libretranslate', stdout=DEVNULL, stderr=PIPE, text=True)
     finally:
         chdir(CURRENT_DIRECTORY)
     return libtr_proc
@@ -214,7 +213,10 @@ def translate_code(fullpath: str, ext_in: list[str]=DEFAULT_TYPES, pref: str='',
     print("Starting libtranslate server.")
     bkgr_proc = start_libtranslate_server()
     print("Started libtranslate server. Waiting for startup.")
-    sleep(STARTUP_DELAY)
+    proc_out = ''
+    while not proc_out.endswith(LOCAL+'\n'):
+        proc_out = proc_out+bkgr_proc.stderr.read(1)
+        print('~|'+proc_out+'|~')  # debug
     print("Translating.")
     try:
         for line in ch_lines:
