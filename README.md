@@ -4,7 +4,7 @@ A collection of Python tools that can make a C developer's life a little easier,
 
 ## autotranslate
 
-Automatic translation from Chinese to English, meant for comments in code files. Chinese is detected based on the symbols used, so you can easily adapt it for any other language that doesn't use the latin alphabet. The tool uses [the external translation program `libretranslate`](https://www.libretranslate.com/). Translated text is added to the code as comments on the same line. Works for `C` and for a lot of other programming languages, and can easily be extended to include more programming languages.
+Script for automatic translation from Chinese to English, meant for comments in code files. Chinese is detected based on the symbols used, so you can easily adapt it for any other language that doesn't use the latin alphabet. The tool uses [the external translation program `libretranslate`](https://www.libretranslate.com/). Translated text is added to the code as comments on the same line. Works for `C` and for a lot of other programming languages, and can easily be extended to include more programming languages.
 
 **Note:** At the moment of writing these lines, there is a bug that only appears occasionally, where the local server running `libretranslate` refuses connections from the client API. Until this is dealt with, a workaround is to launch `libretranslate` manually once, and wait for the local server to start running before closing it; after this, `autotranslate` will run properly.
 
@@ -40,7 +40,42 @@ To see help documentation with more details, run it with the `-h` argument. **It
 
 ## c_tokeniser (partly lifted from [Coderay](https://github.com/rubychan/coderay))
 
-Given a C source file as input, this tool tokenises C syntax and outputs results to json. This project is derivative; it was mostly transcribed from Coderay's code in [this Ruby source file](https://github.com/rubychan/coderay/blob/b5b3430d4635682b767c44469e28a70fe234187e/lib/coderay/scanners/c.rb). Coderay was made by Kornelius Kalnbach and published under [MIT license](https://github.com/rubychan/coderay/blob/228e87307c2faab06f854a79ab592a2737c20f65/MIT-LICENSE), which permits its use here.
+This tool can be used as a script but all its functionality is within functions, classes and objects you can import.
+
+Given a C source file as input, the tool tokenises C syntax and outputs results to json. This project is derivative; it was mostly transcribed from Coderay's code in [this Ruby source file](https://github.com/rubychan/coderay/blob/b5b3430d4635682b767c44469e28a70fe234187e/lib/coderay/scanners/c.rb). Coderay was made by Kornelius Kalnbach and published under [MIT license](https://github.com/rubychan/coderay/blob/228e87307c2faab06f854a79ab592a2737c20f65/MIT-LICENSE), which permits its use here.
+
+### Classes
+
+Four `Enum`s are defined:
+- `State`, whose values track the state of the C program as it is scanned.
+- Three `Enum`s that characterise a specific entity found in the C code:
+  - `TokenType`, which can be an item or a block;
+  - `Action`, which - when not `'NONE''` - refers to items that start or end something;
+  - `Kind`, which specifies exactly what the item is (eg a number, a variable, a keyword, etc).
+
+The last three `Enum`s, together with the corresponding source text, form a named tuple called `Token`: `[('token_type', TokenType), ('action', Action), ('text', str), ('kind', Kind)]` (where `'text'`' may be empty in case `'action'` is not `'NONE'`).
+
+### Objects
+
+`MAIN_PATTERNS` and `SECONDARY_PATTERNS` are dictionaries that give meaningful names to the regex patterns from the original code. The main patterns are those that are checked on the first level, and secondary patterns are then used for disambiguation. `KEYWORDS`, `DIRECTIVES`, `PREDEFINED_TYPES`, and `PREDEFINED_CONSTANTS` are lists of C-specific keywords (again lifted from Coderay). Finally, the `LIST_TO_KIND` dictionary is used to map these keywords to elements of the `Kind` `Enum`, and `KINDS_OF_RESERVED_WORDS = LIST_TO_KIND.keys()` was added for speed and conceptual clarity. 
+
+### Functions
+
+#### `one_of` (dependency: `re`)
+
+Helper function. Performs an OR operation with regex *objects* rather with the patterns themselves.
+
+#### `pattern_compose` (dependency: `re`)
+
+Helper function. Performs concatenation with regex *objects* rather with the patterns themselves.
+
+#### `scan_tokens` (dependencies: `re`, `enum.Enum`, `typing.NamedTuple`, internal definitions)
+
+This is the function you may want to import, along with all the preceding definitions. It takes the C code in string form and returns a list of `Token` objects describing successive syntax elements. It was transcribed from Coderay, whose creator (**wisely**, as it turned out) chose Ruby to implement tokenisation.
+
+#### `parse` (dependencies: `re`, `enum.Enum`, `typing.NamedTuple`, `json`, internal definitions)
+
+This function calls `scan_tokens`, feeds it data from a given input file, and outputs the token list in json form to a given output file (or to the screen, which is the default). It is the entry point for the script.
 
 ## stringify
 

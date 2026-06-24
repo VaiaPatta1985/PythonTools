@@ -117,6 +117,7 @@ def scan_tokens(input_string: str) -> list[Token]:
     tokens: list[Token] = []
     input_length = len(input_string)
     position = 0
+    pattern = None
     while position < input_length:
         regex_match = None
         previous_position = position
@@ -273,19 +274,22 @@ def scan_tokens(input_string: str) -> list[Token]:
     return tokens
 
 
-def parse(c_code: str, jsn: str) -> None:
+def parse(c_file: str, jsn: str) -> None:
     """
     This is the entry point to use cparser as a tool.
     It is the main function, which takes a C source file,
-    calls `scan_tokens` to get a Token list, and outputs
-    the result as json, either to a file or to stdout.
-    :param c_code: file containing C code
+    calls `scan_tokens` to get a `Token` list, and outputs
+    the result as json, either to a file or to `stdout`.
+    The `Token` class is a named tuple (see definition above).
+    :param c_file: file containing C code
     :param jsn: output file (omit or use empty string to use stdout)
     :return: None
     """
-    token_list = tokeniser.scan_tokens(c_file)
+    with open(c_file, 'r') as sourcefile:
+        c_code = sourcefile.read()
+    token_list = tokeniser.scan_tokens(c_code)
     if jsn:
-        json.dump(token_list, open(jsn, "w"))
+        json.dump(token_list, open(jsn, 'w'))
     else:
         print(json.dumps(token_list))
 
