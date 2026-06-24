@@ -273,29 +273,21 @@ def scan_tokens(input_string: str) -> list[Token]:
     return tokens
 
 
-def c_to_json(c_file: str) -> json:
-    """
-    Main function. Takes a C file and returns a json object with the parsed C syntax.
-    :param c_file: C file
-    :return: json object containing the parsed C syntax
-    """
-    token_list = tokeniser.scan_tokens(c_file)
-
-    # todo turn it into json
-
-
 def parse(c_code: str, jsn: str) -> None:
     """
     This is the entry point to use cparser as a tool.
+    It is the main function, which takes a C source file,
+    calls `scan_tokens` to get a Token list, and outputs
+    the result as json, either to a file or to stdout.
     :param c_code: file containing C code
-    :param jsn: output file (omit or use empty string for stdout)
+    :param jsn: output file (omit or use empty string to use stdout)
     :return: None
     """
-    blob = c_to_json(c_code)
+    token_list = tokeniser.scan_tokens(c_file)
     if jsn:
-        json.dump(blob, open(jsn, "w"))
+        json.dump(token_list, open(jsn, "w"))
     else:
-        print(json.dumps(blob))
+        print(json.dumps(token_list))
 
 
 if __name__ == '__main__':
