@@ -36,12 +36,12 @@ def one_of(reg1: re.Pattern, reg2: re.Pattern, flags: re.RegexFlag=re.NOFLAG) ->
     :param flags: output regex flags
     :return: pattern to the effect of ["reg1 or reg2", flags]
     """
-    return re.compile('(?:(' + reg1.pattern + ')|(' + reg2.pattern + '))', flags)
+    return re.compile(r'(?:(' + reg1.pattern + r')|(' + reg2.pattern + r'))', flags)
 
 
 def pattern_compose(reg1: re.Pattern, reg2: re.Pattern, flags: re.RegexFlag=re.NOFLAG) -> re.Pattern:
     """
-    Regex that mathces the sequence of input patterns in the given order.
+    Regex that matches the sequence of input patterns in the given order.
     Ignores original regex flags of each input pattern.
     Optionally specify flags for output pattern.
     :param reg1: first regex pattern
@@ -51,50 +51,61 @@ def pattern_compose(reg1: re.Pattern, reg2: re.Pattern, flags: re.RegexFlag=re.N
     """
     return re.compile(reg1.pattern + reg2.pattern, flags)
 
+def zero_or_one(reg: re.Pattern) -> re.Pattern:
+    """
+    Regex that matches the given pattern or the empty pattern.
+    Retains original regex flags of input pattern.
+    :param reg: regex pattern
+    :return: pattern to the effect of "reg1?"
+    """
+    return re.compile(r'(' + reg.pattern + r')?', reg.flags)
+
+
+ESCAPE = one_of(re.compile(r'[rbfntv\n\\' + r"'" + r'"]'), re.compile(r'x[a-fA-F0-9]{1,2}|[0-7]{1,3}'))
+ESCAPED_ESCAPE = pattern_compose(re.compile(r'\\'), ESCAPE)
+UNICODE_ESCAPE = re.compile(r'u[a-fA-F0-9]{4}|U[a-fA-F0-9]{8}')
 
 SECONDARY_PATTERNS: dict[str, re.Pattern] = {
-    'LABEL': r':(?!:)',
-    'PREPROCESSOR_IF_SUBBLOCK_END': re.compile('^\# (?:elif|else|endif) .*? $ | \Z', re.MULTILINE),
-    'COMMAND_BLOCK': r'[;\{\}]',
-    'ESCAPE': one_of(re.compile('[rbfntv\n\\'+"'"+'"]'), re.compile('x[a-fA-F0-9]{1,2}|[0-7]{1,3}')),
-    'ESCAPED_ESCAPE': pattern_compose(r'\\', ESCAPE),
-    'UNICODE_ESCAPE': r'u[a-fA-F0-9]{4}|U[a-fA-F0-9]{8}',
+    'LABEL': re.compile(r':(?!:)'),
+    'PREPROCESSOR_IF_SUBBLOCK_END': re.compile(r'^\# (?:elif|else|endif) .*? $ | \Z', re.MULTILINE),
+    'COMMAND_BLOCK': re.compile(r'[;\{\}]'),
 }
 
 MAIN_PATTERNS: dict[str, re.Pattern] = {
-    'WHITESPACE': r'\s+ | \\\n',
-    'COMMENT_GENERAL': r'// [^\n\\]* (?: \\. [^\n\\]* )* | /\* (?: .*? \*/ | .* )',
-    'OPERATOR': r'[-+*=<>?:;,!&^|()\[\]{}~%]+ | \/=? | \.(?!\d)',
-    'ALPHANUMERIC_STARTING_WITH_LETTER': r'[A-Za-z_][A-Za-z_0-9]*',
-    'STRING': r'[:alpha:]?"',
-    'PREPROCESSOR_IF_SUBBLOCK_BEGIN': r'\# \s* if \s* 0',
-    'PREPROCESSOR_INSTRUCTION': r'#[ \t]*(\w*)',
-    'CHAR': pattern_compose(r"[:alpha:]?'",
-                            pattern_compose(one_of(r"[^\'\n\\]", SECONDARY_PATTERNS.ESCAPED_ESCAPE), r"?'?")),
-    'IDENT': r'\$',
-    'HEX': r'0[xX][0-9A-Fa-f]+',
-    'OCTAL': r'(?:0[0-7]+)(?![89.eEfF])',
-    'INTEGER': r'(?:\d+)(?![.eEfF])[:alpha:]?[:alpha:]?',
-    'FLOAT': r'\d[fF]?|\d*\.\d+(?:[eE][+-]?\d+)?[fF]?|\d+[eE][+-]?\d+[fF]?',
-    'CONTENT': r'[^\\\n"]+',
-    'STRING_DELIMITER': r'"',
-    'TEXT_CHAR': pattern_compose(r'\\' + one_of(SECONDARY_PATTERNS.ESCAPE, SECONDARY_PATTERNS.UNICODE_ESCAPE)),
-    #'STRING_IN_BLOCK': r'\\ | $',
-    'INCLUDE': r'<[^>\n]+>?|"[^"\n\\]*(?:\\.[^"\n\\]*)*"?',
-    'SPACE': r'\s+',
+    'WHITESPACE': re.compile(r'\s+ | \\\n'),
+    'COMMENT_GENERAL': re.compile(r'// [^\n\\]* (?: \\. [^\n\\]* )* | /\* (?: .*? \*/ | .* )'),
+    'OPERATOR': re.compile(r'[-+*=<>?:;,!&^|()\[\]{}~%]+ | \/=? | \.(?!\d)'),
+    'ALPHANUMERIC_STARTING_WITH_LETTER': re.compile(r'[A-Za-z_][A-Za-z_0-9]*'),
+    'STRING': re.compile(r'[:alpha:]?"'),
+    'PREPROCESSOR_IF_SUBBLOCK_BEGIN': re.compile(r'\# \s* if \s* 0'),
+    'PREPROCESSOR_INSTRUCTION': re.compile(r'#[ \t]*(\w*)'),
+    'CHAR': pattern_compose(re.compile(r"[:alpha:]?'"),
+                            pattern_compose(zero_or_one(one_of(re.compile(r"[^\'\n\\]"), ESCAPED_ESCAPE)),
+                                            re.compile(r"'?"))),
+    'IDENT': re.compile(r'\$'),
+    'HEX': re.compile(r'0[xX][0-9A-Fa-f]+'),
+    'OCTAL': re.compile(r'(?:0[0-7]+)(?![89.eEfF])'),
+    'INTEGER': re.compile(r'(?:\d+)(?![.eEfF])[:alpha:]?[:alpha:]?'),
+    'FLOAT': re.compile(r'\d[fF]?|\d*\.\d+(?:[eE][+-]?\d+)?[fF]?|\d+[eE][+-]?\d+[fF]?'),
+    'CONTENT': re.compile(r'[^\\\n"]+'),
+    'STRING_DELIMITER': re.compile(r'"'),
+    'TEXT_CHAR': pattern_compose(re.compile(r'\\'), one_of(ESCAPE, UNICODE_ESCAPE)),
+    #'STRING_IN_BLOCK': re.compile(r'\\ | $'),
+    'INCLUDE': re.compile(r'<[^>\n]+>?|"[^"\n\\]*(?:\\.[^"\n\\]*)*"?'),
+    'SPACE': re.compile(r'\s+'),
 }
 
-KEYWORDS: list[str] = ['asm', 'break', 'case', 'continue', 'default', 'do', 'else', 'enum', 'for', 'goto', 'if',
-                       'return', 'sizeof', 'struct', 'switch', 'typedef', 'union', 'while', 'restrict']
-DIRECTIVES: list[str] = ['auto', 'extern', 'register', 'static', 'void', 'const', 'volatile', 'inline']
-PREDEFINED_TYPES: list[str] = ['int', 'long', 'short', 'char', 'signed', 'unsigned', 'float', 'double', 'bool',
-                               'complex']
-PREDEFINED_CONSTANTS: list[str] = ['EOF', 'NULL', 'true', 'false']
-LIST_TO_KIND: dict[list[str], Kind] = {KEYWORDS: Kind.KEYWORD,
-                                       DIRECTIVES: Kind.DIRECTIVE,
-                                       PREDEFINED_TYPES: Kind.PREDEFINED_TYPE,
-                                       PREDEFINED_CONSTANTS: Kind.PREDEFINED_CONSTANT}
-KINDS_OF_RESERVED_WORDS = LIST_TO_KIND.keys()
+KEYWORDS: tuple[str] = ('asm', 'break', 'case', 'continue', 'default', 'do', 'else', 'enum', 'for', 'goto', 'if',
+                       'return', 'sizeof', 'struct', 'switch', 'typedef', 'union', 'while', 'restrict')
+DIRECTIVES: tuple[str] = ('auto', 'extern', 'register', 'static', 'void', 'const', 'volatile', 'inline')
+PREDEFINED_TYPES: tuple[str] = ('int', 'long', 'short', 'char', 'signed', 'unsigned', 'float', 'double', 'bool',
+                               'complex')
+PREDEFINED_CONSTANTS: tuple[str] = ('EOF', 'NULL', 'true', 'false')
+TUPLE_TO_KIND: dict[tuple[str], Kind] = {KEYWORDS: Kind.KEYWORD,
+                                         DIRECTIVES: Kind.DIRECTIVE,
+                                         PREDEFINED_TYPES: Kind.PREDEFINED_TYPE,
+                                         PREDEFINED_CONSTANTS: Kind.PREDEFINED_CONSTANT}
+KINDS_OF_RESERVED_WORDS = TUPLE_TO_KIND.keys()
 
 
 def scan_tokens(input_string: str) -> list[Token]:
@@ -158,11 +169,14 @@ def scan_tokens(input_string: str) -> list[Token]:
                     current_kind = Kind.IDENT
                     for kind in KINDS_OF_RESERVED_WORDS:
                         if regex_match[0] in kind:
-                            current_kind = LIST_TO_KIND[kind]
+                            current_kind = TUPLE_TO_KIND[kind]
                             break
                     if current_kind == Kind.IDENT and label_expected and not in_preproc_line:
                         tentative_regex_match = regex_match
                         new_position = position
+                        # Disambiguation note:
+                        # `old_position` is the value of `position` before we change it within the *same* loop
+                        # `previous_position` is the value of `position` from the *previous* loop
                         old_position = position
                         while tentative_regex_match is not None:
                             regex_match = tentative_regex_match
