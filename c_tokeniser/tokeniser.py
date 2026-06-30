@@ -29,6 +29,7 @@ Token = NamedTuple('Token', [('token_type', TokenType), ('action', Action), ('te
 
 
 # Helper functions
+
 def one_of(reg1: re.Pattern, reg2: re.Pattern, flags: re.RegexFlag=re.NOFLAG) -> re.Pattern:
     """
     Regex that matches both given patterns.
@@ -141,8 +142,8 @@ def scan_tokens(input_string: str) -> list[Token]:
     input_length = len(input_string)
     position = 0
     pattern = None
-    main_patterns = STATES_AND_PATTERNS[state]
     while position < input_length:
+        main_patterns = STATES_AND_PATTERNS[state]
         regex_match = None
         previous_position = position
         while regex_match is None:
