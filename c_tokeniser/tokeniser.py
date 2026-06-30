@@ -63,7 +63,7 @@ def zero_or_one(reg: re.Pattern) -> re.Pattern:
     :param reg: regex pattern
     :return: pattern to the effect of "reg1?"
     """
-    return re.compile(r'(' + reg.pattern + r')?', reg.flags)
+    return re.compile(r'(?:' + reg.pattern + r')?', reg.flags)
 
 
 # Constant objects
@@ -76,12 +76,12 @@ ESCAPE = one_of(re.compile(r'[rbfntv\n\\' + r"'" + r'"]'), re.compile(r'x[a-fA-F
 ESCAPED_ESCAPE = pattern_compose(re.compile(r'\\'), ESCAPE)
 UNICODE_ESCAPE = re.compile(r'u[a-fA-F0-9]{4}|U[a-fA-F0-9]{8}')
 MAIN_PATTERNS_INITIAL_STATE: dict[str, re.Pattern] = {
-    'WHITESPACE': re.compile(r'\s+ | \\\n'),
-    'COMMENT_GENERAL': re.compile(r'// [^\n\\]* (?: \\. [^\n\\]* )* | /\* (?: .*? \*/ | .* )'),
-    'OPERATOR': re.compile(r'[-+*=<>?:;,!&^|()\[\]{}~%]+ | \/=? | \.(?!\d)'),
+    'WHITESPACE': re.compile(r'\s+|\\\n'),
+    'COMMENT_GENERAL': re.compile(r'//[^\n\\]*(?:\\.[^\n\\]*)*|/\*(?:.*?\*/|.*)'),
+    'OPERATOR': re.compile(r'[-+*=<>?:;,!&^|()\[\]{}~%]+|\/=?|\.(?!\d)'),
     'ALPHANUMERIC_STARTING_WITH_LETTER': re.compile(r'[A-Za-z_][A-Za-z_0-9]*'),
     'STRING': re.compile(r'[:alpha:]?"'),
-    'PREPROCESSOR_IF_SUBBLOCK_BEGIN': re.compile(r'\# \s* if \s* 0'),
+    'PREPROCESSOR_IF_SUBBLOCK_BEGIN': re.compile(r'\#\s*if\s*0'),
     'PREPROCESSOR_INSTRUCTION': re.compile(r'#[ \t]*(\w*)'),
     'CHAR': pattern_compose(re.compile(r"[:alpha:]?'"),
                             pattern_compose(zero_or_one(one_of(re.compile(r"[^\'\n\\]"), ESCAPED_ESCAPE)),
@@ -96,7 +96,7 @@ MAIN_PATTERNS_STRING_STATE: dict[str, re.Pattern] = {
     'CONTENT': re.compile(r'[^\\\n"]+'),
     'STRING_DELIMITER': re.compile(r'"'),
     'TEXT_CHAR': pattern_compose(re.compile(r'\\'), one_of(ESCAPE, UNICODE_ESCAPE)),
-    #'STRING_IN_BLOCK': re.compile(r'\\ | $'),
+    #'STRING_IN_BLOCK': re.compile(r'\\|$'),
 }
 MAIN_PATTERNS_INCLUDE_EXPECTED_STATE: dict[str, re.Pattern] = {
     'INCLUDE': re.compile(r'<[^>\n]+>?|"[^"\n\\]*(?:\\.[^"\n\\]*)*"?'),
