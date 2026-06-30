@@ -160,8 +160,6 @@ def scan_tokens(input_string: str) -> list[Token]:
             new_position += 1
             tentative_regex_match = pattern.fullmatch(input_string[previous_position:new_position])
 
-        print(pattern)  # debugging
-        print(regex_match[0])
         match state:
             case State.INITIAL:
                 if pattern == main_patterns['WHITESPACE']:
