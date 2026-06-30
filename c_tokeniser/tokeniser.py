@@ -96,10 +96,10 @@ MAIN_PATTERNS: dict[str, re.Pattern] = {
 }
 
 KEYWORDS: tuple[str] = ('asm', 'break', 'case', 'continue', 'default', 'do', 'else', 'enum', 'for', 'goto', 'if',
-                       'return', 'sizeof', 'struct', 'switch', 'typedef', 'union', 'while', 'restrict')
+                        'return', 'sizeof', 'struct', 'switch', 'typedef', 'union', 'while', 'restrict')
 DIRECTIVES: tuple[str] = ('auto', 'extern', 'register', 'static', 'void', 'const', 'volatile', 'inline')
 PREDEFINED_TYPES: tuple[str] = ('int', 'long', 'short', 'char', 'signed', 'unsigned', 'float', 'double', 'bool',
-                               'complex')
+                                'complex')
 PREDEFINED_CONSTANTS: tuple[str] = ('EOF', 'NULL', 'true', 'false')
 TUPLE_TO_KIND: dict[tuple[str], Kind] = {KEYWORDS: Kind.KEYWORD,
                                          DIRECTIVES: Kind.DIRECTIVE,
@@ -133,7 +133,7 @@ def scan_tokens(input_string: str) -> list[Token]:
         regex_match = None
         previous_position = position
         while regex_match is None:
-            for pattern in MAIN_PATTERNS:
+            for pattern in MAIN_PATTERNS.values():
                 regex_match = pattern.fullmatch(input_string[previous_position:position])
                 if regex_match is not None:
                     break
@@ -148,24 +148,24 @@ def scan_tokens(input_string: str) -> list[Token]:
 
         match state:
             case State.INITIAL:
-                if pattern == MAIN_PATTERNS.WHITESPACE:
+                if pattern == MAIN_PATTERNS['WHITESPACE']:
                     if in_preproc_line and regex_match[0] != '\\\n' and regex_match[0].find('\n') > -1:
                         in_preproc_line = False
                         label_expected = label_expected_before_preproc_line
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.SPACE))
-                elif pattern == MAIN_PATTERNS.COMMENT_GENERAL:
+                elif pattern == MAIN_PATTERNS['COMMENT_GENERAL']:
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.COMMENT))
-                elif pattern == MAIN_PATTERNS.OPERATOR:
-                    label_expected = SECONDARY_PATTERNS.COMMAND_BLOCK.match(regex_match[0]) is not None
+                elif pattern == MAIN_PATTERNS['OPERATOR']:
+                    label_expected = SECONDARY_PATTERNS['COMMAND_BLOCK'].match(regex_match[0]) is not None
                     if case_expected:
                         if regex_match[0] == ':':
                             label_expected = True
                         case_expected = False
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.OPERATOR))
-                elif pattern == MAIN_PATTERNS.ALPHANUMERIC_STARTING_WITH_LETTER:
+                elif pattern == MAIN_PATTERNS['ALPHANUMERIC_STARTING_WITH_LETTER']:
                     current_kind = Kind.IDENT
                     for kind in KINDS_OF_RESERVED_WORDS:
                         if regex_match[0] in kind:
@@ -183,7 +183,7 @@ def scan_tokens(input_string: str) -> list[Token]:
                             position = new_position
                             new_position += 1
                             tentative_regex_match = \
-                                SECONDARY_PATTERNS.LABEL.fullmatch(input_string[previous_position:new_position])
+                                SECONDARY_PATTERNS['LABEL'].fullmatch(input_string[previous_position:new_position])
                         if old_position == position:
                             label_expected = False
                         else:
@@ -194,7 +194,7 @@ def scan_tokens(input_string: str) -> list[Token]:
                             case_expected = True
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=current_kind))
-                elif pattern == MAIN_PATTERNS.STRING:
+                elif pattern == MAIN_PATTERNS['STRING']:
                     tokens.append(Token(token_type=TokenType.BLOCK, action=Action.OPEN, text='', kind=Kind.STRING))
                     if regex_match[0].isalpha():
                         tokens.append(
@@ -203,7 +203,7 @@ def scan_tokens(input_string: str) -> list[Token]:
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.DELIMITER))
                     state = State.STRING
-                elif pattern == MAIN_PATTERNS.PREPROCESSOR_IF_SUBBLOCK_BEGIN:
+                elif pattern == MAIN_PATTERNS['PREPROCESSOR_IF_SUBBLOCK_BEGIN']:
                     content = ''
                     content_end = position
                     content_match = None
@@ -211,37 +211,37 @@ def scan_tokens(input_string: str) -> list[Token]:
                         while content_match is None:
                             content_end += 1
                             content = input_string[position:content_end]
-                            content_match = SECONDARY_PATTERNS.PREPROCESSOR_IF_SUBBLOCK_END.search(content)
+                            content_match = SECONDARY_PATTERNS['PREPROCESSOR_IF_SUBBLOCK_END'].search(content)
                         regex_match[0] = regex_match[0] + content
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.COMMENT))
-                elif pattern == MAIN_PATTERNS.PREPROCESSOR_INSTRUCTION:
+                elif pattern == MAIN_PATTERNS['PREPROCESSOR_INSTRUCTION']:
                     tokens.append(Token(
                         token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.PREPROCESSOR))
                     in_preproc_line = True
                     label_expected_before_preproc_line = label_expected
                     if regex_match[1] == 'include':
                         state = State.INCLUDE_EXPECTED
-                elif pattern == MAIN_PATTERNS.CHAR:
+                elif pattern == MAIN_PATTERNS['CHAR']:
                     label_expected = False
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.CHAR))
-                elif pattern == MAIN_PATTERNS.IDENT:
+                elif pattern == MAIN_PATTERNS['IDENT']:
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.IDENT))
-                elif pattern == MAIN_PATTERNS.HEX:
+                elif pattern == MAIN_PATTERNS['HEX']:
                     label_expected = False
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.HEX))
-                elif pattern == MAIN_PATTERNS.OCTAL:
+                elif pattern == MAIN_PATTERNS['OCTAL']:
                     label_expected = False
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.OCTAL))
-                elif pattern == MAIN_PATTERNS.INTEGER:
+                elif pattern == MAIN_PATTERNS['INTEGER']:
                     label_expected = False
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.INTEGER))
-                elif pattern == MAIN_PATTERNS.FLOAT:
+                elif pattern == MAIN_PATTERNS['FLOAT']:
                     label_expected = False
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.FLOAT))
@@ -249,19 +249,19 @@ def scan_tokens(input_string: str) -> list[Token]:
                     raise Exception()
                     #tokens.append(Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.ERROR))
             case State.STRING:
-                if pattern == MAIN_PATTERNS.CONTENT:
+                if pattern == MAIN_PATTERNS['CONTENT']:
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.CONTENT))
-                elif pattern == MAIN_PATTERNS.STRING_DELIMITER:
+                elif pattern == MAIN_PATTERNS['STRING_DELIMITER']:
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.DELIMITER))
                     tokens.append(Token(token_type=TokenType.BLOCK, action=Action.CLOSE, text='', kind=Kind.STRING))
                     state = State.INITIAL
                     label_expected = False
-                elif pattern == MAIN_PATTERNS.TEXT_CHAR:
+                elif pattern == MAIN_PATTERNS['TEXT_CHAR']:
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.CHAR))
-#                elif pattern == MAIN_PATTERNS.STRING_IN_BLOCK:
+#                elif pattern == MAIN_PATTERNS['STRING_IN_BLOCK']:
 #                    tokens.append(Token(token_type=TokenType.BLOCK, action=Action.CLOSE, text='', kind=Kind.STRING))
 #                    tokens.append(Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.ERROR))
 #                    state = State.INITIAL
@@ -269,11 +269,11 @@ def scan_tokens(input_string: str) -> list[Token]:
                 else:
                     raise Exception()
             case State.INCLUDE_EXPECTED:
-                if pattern == MAIN_PATTERNS.INCLUDE:
+                if pattern == MAIN_PATTERNS['INCLUDE']:
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.INCLUDE))
                     state = State.INITIAL
-                elif pattern == MAIN_PATTERNS.SPACE:
+                elif pattern == MAIN_PATTERNS['SPACE']:
                     tokens.append(
                         Token(token_type=TokenType.TEXT, action=Action.NONE, text=regex_match[0], kind=Kind.SPACE))
                     if regex_match[0].find('\n') > -1:
@@ -301,7 +301,7 @@ def parse(c_file: str, jsn: str) -> None:
     """
     with open(c_file, 'r') as sourcefile:
         c_code = sourcefile.read()
-    token_list = tokeniser.scan_tokens(c_code)
+    token_list = scan_tokens(c_code)
     if jsn:
         json.dump(token_list, open(jsn, 'w'))
     else:
