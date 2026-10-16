@@ -86,3 +86,7 @@ Must be imported along with all the preceding definitions. This function calls `
 ## `stringify`
 
 Barebones script that takes a text file and makes an altered copy with all the special characters escaped. A simplistic but useful tool for whenever you want to programmatically create a file. As usual, calling it with the `-h` argument prints more information on usage.
+
+## `assembly_made_easy`
+
+Write assembly using readable names for registers, and leave it to this python script to turn it into proper x86-64 Assembly for you. It's written for NASM, ABI System V. It handles general-purpose registers and `xmm` registers, and can easily be extended to include other registers (just add them to the `ALL_REGISTERS` list). As usual, calling it with the `-h` argument prints more information on usage.

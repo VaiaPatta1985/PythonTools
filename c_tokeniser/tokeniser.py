@@ -69,7 +69,7 @@ def zero_or_one(reg: re.Pattern) -> re.Pattern:
 # Constant objects
 SECONDARY_PATTERNS: dict[str, re.Pattern] = {
     'LABEL': re.compile(r':(?!:)'),
-    'PREPROCESSOR_IF_SUBBLOCK_END': re.compile(r'^\# (?:elif|else|endif) .*? $ | \Z', re.MULTILINE),
+    'PREPROCESSOR_IF_SUBBLOCK_END': re.compile(r'^\#(?:elif|else|endif).*?$|\Z', re.MULTILINE),
     'COMMAND_BLOCK': re.compile(r'[;\{\}]'),
 }
 ESCAPE = one_of(re.compile(r'[rbfntv\n\\' + r"'" + r'"]'), re.compile(r'x[a-fA-F0-9]{1,2}|[0-7]{1,3}'))
@@ -77,12 +77,33 @@ ESCAPED_ESCAPE = pattern_compose(re.compile(r'\\'), ESCAPE)
 UNICODE_ESCAPE = re.compile(r'u[a-fA-F0-9]{4}|U[a-fA-F0-9]{8}')
 MAIN_PATTERNS_INITIAL_STATE: dict[str, re.Pattern] = {
     'WHITESPACE': re.compile(r'\s+|\\\n'),
-    'COMMENT_GENERAL': re.compile(r'//[^\n\\]*(?:\\.[^\n\\]*)*|/\*(?:.*?\*/|.*)'),
+    # 'COMMENT_GENERAL': re.compile(r"""
+    #                               # case 1: one-liner
+    #                               # it ends on a newline unless the newline is escaped
+    #                               //  # start of single-line comment
+    #                               [^\n\\]*  # sequence of anything that is not a newline or a `\`
+    #                               (?: \\. [^\n\\]* )*  # sequence of parts
+    #                               # each starting with an escaped character followed by
+    #                               # a sequence of anything that is not a newline or a `\`
+    #                               |  # case 2: multiline
+    #                               # it starts with `\*` and ends with `*/`
+    #                               /\*  # start of multiline comment
+    #                               (?:  # followed by one of two things
+    #                               # case 2a
+    #                               .*? \*/  # any sequence ending with `*/`
+    #                               |  # case 2b
+    #                               .*  # any other sequence? wtf?
+    #                               )
+    #                               """,
+    #'COMMENT_GENERAL': one_of(re.compile(r'// [^\n\\]* (?: \\. [^\n\\]* )*'),
+    #                          re.compile(r'/\* (?: .*? \*/ | .* )'),
+    'COMMENT_GENERAL': re.compile(r'// [^\n\\]* (?: \\. [^\n\\]* )* | /\* (?: .*? \*/ | .* )',
+                              re.MULTILINE | re.VERBOSE),
     'OPERATOR': re.compile(r'[-+*=<>?:;,!&^|()\[\]{}~%]+|\/=?|\.(?!\d)'),
     'ALPHANUMERIC_STARTING_WITH_LETTER': re.compile(r'[A-Za-z_][A-Za-z_0-9]*'),
     'STRING': re.compile(r'[:alpha:]?"'),
     'PREPROCESSOR_IF_SUBBLOCK_BEGIN': re.compile(r'\#\s*if\s*0'),
-    'PREPROCESSOR_INSTRUCTION': re.compile(r'#[ \t]*(\w*)'),
+    'PREPROCESSOR_INSTRUCTION': re.compile(r'\#[ \t]*(\w*)'),
     'CHAR': pattern_compose(re.compile(r"[:alpha:]?'"),
                             pattern_compose(zero_or_one(one_of(re.compile(r"[^\'\n\\]"), ESCAPED_ESCAPE)),
                                             re.compile(r"'?"))),
@@ -146,12 +167,16 @@ def scan_tokens(input_string: str) -> list[Token]:
         main_patterns = STATES_AND_PATTERNS[state]
         regex_match = None
         previous_position = position
-        while regex_match is None:
-            for pattern in main_patterns.values():
-                regex_match = pattern.fullmatch(input_string[previous_position:position])
-                if regex_match is not None:
-                    break
-            position += 1
+        try:  # debugging
+            while regex_match is None:
+                for pattern in main_patterns.values():
+                    regex_match = pattern.fullmatch(input_string[previous_position:position])
+                    if regex_match is not None:
+                        break
+                position += 1
+        except KeyboardInterrupt:
+            print(input_string[previous_position:position])
+            raise KeyboardInterrupt
         tentative_regex_match = regex_match
         new_position = position
         while tentative_regex_match is not None:
