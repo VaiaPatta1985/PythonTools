@@ -128,17 +128,17 @@ STATES_AND_PATTERNS: dict[State, dict[str, re.Pattern]] = {
     State.STRING: MAIN_PATTERNS_STRING_STATE,
     State.INCLUDE_EXPECTED: MAIN_PATTERNS_INCLUDE_EXPECTED_STATE,
 }
-KEYWORDS: tuple[str] = ('asm', 'break', 'case', 'continue', 'default', 'do', 'else', 'enum', 'for', 'goto', 'if',
-                        'return', 'sizeof', 'struct', 'switch', 'typedef', 'union', 'while', 'restrict')
-DIRECTIVES: tuple[str] = ('auto', 'extern', 'register', 'static', 'void', 'const', 'volatile', 'inline')
-PREDEFINED_TYPES: tuple[str] = ('int', 'long', 'short', 'char', 'signed', 'unsigned', 'float', 'double', 'bool',
-                                'complex')
-PREDEFINED_CONSTANTS: tuple[str] = ('EOF', 'NULL', 'true', 'false')
-TUPLE_TO_KIND: dict[tuple[str], Kind] = {KEYWORDS: Kind.KEYWORD,
+KEYWORDS: list[str] = ['asm', 'break', 'case', 'continue', 'default', 'do', 'else', 'enum', 'for', 'goto', 'if',
+                        'return', 'sizeof', 'struct', 'switch', 'typedef', 'union', 'while', 'restrict']
+DIRECTIVES: list[str] = ['auto', 'extern', 'register', 'static', 'void', 'const', 'volatile', 'inline']
+PREDEFINED_TYPES: list[str] = ['int', 'long', 'short', 'char', 'signed', 'unsigned', 'float', 'double', 'bool',
+                                'complex']
+PREDEFINED_CONSTANTS: list[str] = ['EOF', 'NULL', 'true', 'false']
+LIST_TO_KIND: dict[list[str], Kind] = {KEYWORDS: Kind.KEYWORD,
                                          DIRECTIVES: Kind.DIRECTIVE,
                                          PREDEFINED_TYPES: Kind.PREDEFINED_TYPE,
                                          PREDEFINED_CONSTANTS: Kind.PREDEFINED_CONSTANT}
-KINDS_OF_RESERVED_WORDS = TUPLE_TO_KIND.keys()
+KINDS_OF_RESERVED_WORDS = LIST_TO_KIND.keys()
 
 
 # Core function
@@ -208,7 +208,7 @@ def scan_tokens(input_string: str) -> list[Token]:
                     current_kind = Kind.IDENT
                     for kind in KINDS_OF_RESERVED_WORDS:
                         if regex_match[0] in kind:
-                            current_kind = TUPLE_TO_KIND[kind]
+                            current_kind = LIST_TO_KIND[kind]
                             break
                     if current_kind == Kind.IDENT and label_expected and not in_preproc_line:
                         tentative_regex_match = regex_match
