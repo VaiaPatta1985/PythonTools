@@ -2,7 +2,7 @@
 
 A collection of Python tools that can make a C developer's life a little easier, published here under MIT license. Where other people's work is used, it is clearly marked as such.
 
-## `autotranslate` (dependencies: `chardet`, `libretranslate`, `libretranslatepy`)
+## `autotranslate`
 
 Script for automatic translation from Chinese to English, meant for comments in code files. Chinese is detected based on the symbols used, so you can easily adapt it for any other language that doesn't use the latin alphabet. The tool uses [the external translation program `libretranslate`](https://www.libretranslate.com/). Translated text is added to the code as comments on the same line. Works for `C` and for a lot of other programming languages, and can easily be extended to include more programming languages.
 
